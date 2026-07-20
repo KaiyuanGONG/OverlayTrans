@@ -293,6 +293,4 @@ OverlayTrans stands on:
 
 Source code is released under the [MIT License](LICENSE).
 
-Brand assets — the logos and icons under `src-tauri/icons/` and `src/assets/brand/` — are
-© 2026 Kaiyuan GONG, all rights reserved, and are **not** covered by the MIT license. Please
-use your own branding if you distribute a fork.
+The OverlayTrans name, chameleon logo, application icons, and installer branding are not covered by the MIT License. Their use is governed by the [Trademark and Brand Policy](TRADEMARKS.md). Forks and modified distributions must use different branding.

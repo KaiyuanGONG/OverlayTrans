@@ -277,7 +277,6 @@ OverlayTrans 建立在这些项目之上：
 
 ## 许可证
 
-源代码基于 [MIT 许可证](LICENSE) 发布。
+源代码基于 [MIT 许可证](LICENSE)发布。
 
-品牌素材——`src-tauri/icons/` 与 `src/assets/brand/` 下的 logo 和图标——版权归
-© 2026 Kaiyuan GONG 所有，保留所有权利，**不适用** MIT 许可。如果你要分发 fork 版本，请换成你自己的品牌标识。
+OverlayTrans 名称、变色龙 Logo、应用图标和安装器品牌素材不适用 MIT 许可证，其使用规则见[商标与品牌政策](TRADEMARKS.md)。Fork 或修改版发行必须更换名称和品牌素材。
