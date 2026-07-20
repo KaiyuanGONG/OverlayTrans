@@ -10,9 +10,9 @@
 翻译就出现在字幕原本的位置——全程不用退出全屏。
 
 [![Release](https://img.shields.io/github/v/release/KaiyuanGONG/OverlayTrans?style=flat-square&color=2f81f7)](https://github.com/KaiyuanGONG/OverlayTrans/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/KaiyuanGONG/OverlayTrans/total?style=flat-square&color=2f81f7)](https://github.com/KaiyuanGONG/OverlayTrans/releases)
+[![Downloads](https://img.shields.io/github/downloads/KaiyuanGONG/OverlayTrans/total?style=flat-square&color=2f81f7&v=2)](https://github.com/KaiyuanGONG/OverlayTrans/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078d4?style=flat-square)](#运行环境)
-[![License](https://img.shields.io/github/license/KaiyuanGONG/OverlayTrans?style=flat-square&color=2f81f7)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-2f81f7?style=flat-square)](LICENSE)
 [![Built with Tauri](https://img.shields.io/badge/built%20with-Tauri%202-24c8db?style=flat-square)](https://tauri.app/)
 
 [**下载安装包**](https://github.com/KaiyuanGONG/OverlayTrans/releases/latest) ·
