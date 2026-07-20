@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Disable default browser drag to avoid interfering with overlay dragging */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection in translation output */
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* Scrollbar styling for translation history */
+.thin-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+/* Status indicator animations */
+@keyframes pulse-status {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-pulsing {
+  animation: pulse-status 1s ease-in-out infinite;
+}

@@ -1,0 +1,26 @@
+*.ps1
+# Node / npm
+node_modules/
+dist/
+
+# Rust / Cargo
+src-tauri/target/
+src-tauri/gen/
+
+# Sidecar binaries (downloaded at build time)
+src-tauri/binaries/
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Environment / secrets
+.env
+.env.local
+.envrc
+
+
+# OverlayTrans private files (developer-only, not for public repo)
+_docs/
+config.json
+.overlaytrans.local.json

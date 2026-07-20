@@ -1,0 +1,100 @@
+[package]
+name = "overlay-trans"
+version = "3.0.4"
+description = "Immersive AI screen translator for Visual Novels and videos"
+authors = ["Kaiyuan GONG"]
+repository = "https://github.com/KaiyuanGONG/OverlayTrans"
+license = "MIT"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lints.rust]
+# MSVC emits a localized informational "creating .lib/.exp" line on stdout.
+# Rust 1.97 classifies that non-diagnostic linker chatter as a warning.
+linker_messages = "allow"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib/bin distinction for the crate.
+name = "overlay_trans_lib"
+crate-type = ["staticlib", "cdylib", "lib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-ico", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-shell = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+
+# Image processing
+image = { version = "0.23", default-features = false, features = ["png", "jpeg", "bmp"] }
+img_hash = "3"
+
+# Crypto / fingerprinting
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# URL parsing (§2.1)
+url = "2"
+
+# Logging
+log = "0.4"
+
+# Async channels
+tokio-stream = "0.1"
+futures-util = "0.3"
+
+# Platform directories (AppData path)
+dirs-next = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  # WinRT foundation
+  "Foundation",
+  "Foundation_Collections",
+  "Win32_System_WinRT",
+  "Win32_System_Com",
+  # OCR (WinRT) — Windows.Media.Ocr, Windows.Graphics.Imaging, Windows.Storage
+  "Media_Ocr",
+  "Globalization",
+  "Graphics_Imaging",
+  "Storage",
+  "Storage_Streams",
+  # Win32 GDI (screen capture via BitBlt)
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  # Win32 UI (cursor position, window handle)
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Shell",
+  # Mouse-button state (freeze pass-through toggling mid-drag)
+  "Win32_UI_Input_KeyboardAndMouse",
+  # Registry (device fingerprint)
+  "Win32_System_Registry",
+  # GGUF download disk-space preflight
+  "Win32_Storage_FileSystem",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["test-util"] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
