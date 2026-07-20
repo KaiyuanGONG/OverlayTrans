@@ -1,238 +1,236 @@
 #!/usr/bin/env node
-/**
- * Build preparation script: downloads and extracts llama.cpp runtime for sidecar packaging.
- *
- * This script:
- * 1. Downloads the fixed llama.cpp release zip
- * 2. Verifies SHA-256
- * 3. Extracts llama-server.exe and required DLLs
- * 4. Places them in src-tauri/binaries/ with correct target-triple naming
- *
- * Run: node scripts/prepare-sidecar.mjs
- *
- * Locked to llama.cpp b10068 (2026-07-18) per handoff §7.1
- */
 
-import { createHash } from 'node:crypto';
-import { once } from 'node:events';
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
-  createWriteStream,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   rmSync,
-} from 'node:fs';
-import { spawnSync } from 'node:child_process';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  activateStagedDirectory,
+  assertAvx2ProbeOutput,
+  assertVersionOutput,
+  cmakeBuildArguments,
+  cmakeConfigureArguments,
+  parseAndValidatePeDependencies,
+} from "./lib/sidecar-build.mjs";
+import { SIDECAR_MANIFEST } from "./lib/sidecar-manifest.mjs";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '..');
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const root = join(scriptDirectory, "..");
+const binariesDirectory = join(root, "src-tauri", "binaries");
+const temporaryDirectory = join(root, "src-tauri", "target", "sidecar-temp");
 
-// ── Locked manifest (§7.1) ──
-const LLAMA_CPP = {
-  repo: 'ggml-org/llama.cpp',
-  release: 'b10068',
-  asset: 'llama-b10068-bin-win-cpu-x64.zip',
-  sha256: '01d5f30876acfb4a0be59396710f450213495c7181d8fbcce2fad045835ceb89',
-  downloadUrl: 'https://github.com/ggml-org/llama.cpp/releases/download/b10068/llama-b10068-bin-win-cpu-x64.zip',
-  licenseUrl: 'https://raw.githubusercontent.com/ggml-org/llama.cpp/b10068/LICENSE',
-  licenseSha256: '94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d',
-};
-
-const TARGET_TRIPLE = 'x86_64-pc-windows-msvc';
-const BINARIES_DIR = join(ROOT, 'src-tauri', 'binaries');
-const TEMP_DIR = join(ROOT, 'src-tauri', 'target', 'sidecar-temp');
-
-// The b10068 Windows CPU archive uses a small launcher plus implementation,
-// common, core and CPU-dispatch DLLs. These names guard against silently
-// packaging an incomplete or structurally different release.
-const REQUIRED_FILES = [
-  'llama-server.exe',
-  'llama-server-impl.dll',
-  'llama-common.dll',
-  'ggml-base.dll',
-  'ggml-cpu-x64.dll',
-  'ggml.dll',
-  'llama.dll',
-  'libomp140.x86_64.dll',
-];
-
-async function downloadFile(url, dest) {
-  console.log(`Downloading ${url}...`);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Download failed: HTTP ${response.status}`);
-  }
-  // Content-Length describes compressed transfer bytes when Content-Encoding
-  // is present, so it cannot be compared with the decoded fetch body size.
-  const total = response.headers.get('content-encoding')
-    ? 0
-    : parseInt(response.headers.get('content-length') || '0', 10);
-  let downloaded = 0;
-
-  const fileStream = createWriteStream(dest);
-  const fileFinished = once(fileStream, 'finish');
-  const reader = response.body.getReader();
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    fileStream.write(value);
-    downloaded += value.length;
-    if (total > 0) {
-      const pct = ((downloaded / total) * 100).toFixed(1);
-      process.stdout.write(`\r  ${pct}% (${(downloaded / 1048576).toFixed(1)} MB)`);
-    }
-  }
-  fileStream.end();
-  await fileFinished;
-  console.log('\n  Download complete.');
+function sha256(filePath) {
+  return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
 function verifySha256(filePath, expected) {
-  console.log(`Verifying SHA-256...`);
-  const hash = createHash('sha256');
-  hash.update(readFileSync(filePath));
-  const actual = hash.digest('hex');
-  if (actual.toLowerCase() !== expected.toLowerCase()) {
-    throw new Error(`SHA-256 mismatch!\n  Expected: ${expected}\n  Actual:   ${actual}`);
+  const actual = sha256(filePath);
+  if (actual !== expected.toLowerCase()) {
+    throw new Error(`SHA-256 mismatch for ${filePath}: expected ${expected}, got ${actual}`);
   }
-  console.log('  SHA-256 verified OK.');
 }
 
-async function extractFiles(zipPath, destDir) {
-  console.log(`Extracting to ${destDir}...`);
-  mkdirSync(destDir, { recursive: true });
-
-  // The locked runtime is Windows-only, so use the bsdtar bundled with
-  // supported Windows versions instead of adding a build-only npm package.
-  const result = spawnSync('tar.exe', ['-xf', zipPath, '-C', destDir], {
-    encoding: 'utf8',
+function runChecked(command, args, { capture = false, cwd } = {}) {
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: capture ? "pipe" : "inherit",
   });
   if (result.error) {
-    throw new Error(`Unable to start tar.exe: ${result.error.message}`);
+    throw new Error(`Unable to start ${command}: ${result.error.message}`);
   }
   if (result.status !== 0) {
-    throw new Error(`Archive extraction failed: ${result.stderr || result.stdout}`);
+    const diagnostic = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+    throw new Error(`${command} exited with status ${result.status}${diagnostic ? `:\n${diagnostic}` : ""}`);
   }
+  return [result.stdout, result.stderr].filter(Boolean).join("\n");
 }
 
-function findExtractedFile(root, fileName) {
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    const path = join(root, entry.name);
+async function downloadFile(url, destination) {
+  console.log(`Downloading ${url}`);
+  const response = await fetch(url, { redirect: "follow" });
+  if (!response.ok) {
+    throw new Error(`Download failed with HTTP ${response.status}: ${url}`);
+  }
+  writeFileSync(destination, Buffer.from(await response.arrayBuffer()));
+}
+
+function findVisualStudioTools() {
+  const programFilesX86 = process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)";
+  const vswhere = join(programFilesX86, "Microsoft Visual Studio", "Installer", "vswhere.exe");
+  if (!existsSync(vswhere)) {
+    throw new Error(`Visual Studio locator not found: ${vswhere}`);
+  }
+  const installationPath = runChecked(vswhere, [
+    "-latest",
+    "-products", "*",
+    "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+    "-property", "installationPath",
+  ], { capture: true }).trim();
+  if (!installationPath) {
+    throw new Error("Visual Studio with the MSVC x64 toolchain was not found");
+  }
+  const cmake = join(
+    installationPath,
+    "Common7", "IDE", "CommonExtensions", "Microsoft", "CMake", "CMake", "bin", "cmake.exe",
+  );
+  const msvcRoot = join(installationPath, "VC", "Tools", "MSVC");
+  const versions = readdirSync(msvcRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right, "en", { numeric: true }));
+  const msvcVersion = versions.at(-1);
+  const dumpbin = msvcVersion
+    ? join(msvcRoot, msvcVersion, "bin", "Hostx64", "x64", "dumpbin.exe")
+    : undefined;
+  if (!existsSync(cmake) || !dumpbin || !existsSync(dumpbin)) {
+    throw new Error("Visual Studio CMake or x64 dumpbin.exe was not found");
+  }
+  return { cmake, dumpbin, installationPath, msvcVersion };
+}
+
+function verifyAvx2Host(probeDirectory) {
+  const source = join(probeDirectory, "avx2-probe.rs");
+  const executable = join(probeDirectory, "avx2-probe.exe");
+  writeFileSync(source, [
+    "fn main() {",
+    "    if std::is_x86_feature_detected!(\"avx2\") {",
+    "        println!(\"AVX2_SUPPORTED\");",
+    "    } else {",
+    "        println!(\"AVX2_UNSUPPORTED\");",
+    "        std::process::exit(2);",
+    "    }",
+    "}",
+    "",
+  ].join("\n"));
+  runChecked("rustc", [source, "-O", "-o", executable]);
+  const output = runChecked(executable, [], { capture: true });
+  assertAvx2ProbeOutput(output);
+}
+
+function extractSource(archive, sourceDirectory) {
+  mkdirSync(sourceDirectory, { recursive: true });
+  runChecked("tar.exe", [
+    "-xf", archive,
+    "-C", sourceDirectory,
+    "--strip-components", "1",
+  ]);
+}
+
+function findFile(directory, fileName) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const candidate = join(directory, entry.name);
     if (entry.isDirectory()) {
-      const nested = findExtractedFile(path, fileName);
+      const nested = findFile(candidate, fileName);
       if (nested) return nested;
     } else if (entry.name.toLowerCase() === fileName.toLowerCase()) {
-      return path;
+      return candidate;
     }
   }
   return undefined;
 }
 
-function collectExtractedDlls(root, result = []) {
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    const path = join(root, entry.name);
-    if (entry.isDirectory()) {
-      collectExtractedDlls(path, result);
-    } else if (entry.name.toLowerCase().endsWith('.dll')) {
-      result.push(path);
-    }
+function assertBuildPolicy() {
+  if (SIDECAR_MANIFEST.build.definitions.GGML_OPENMP !== "OFF") {
+    throw new Error("The locked sidecar build requires GGML_OPENMP=OFF");
   }
-  return result;
+  if (SIDECAR_MANIFEST.build.definitions.CMAKE_MSVC_RUNTIME_LIBRARY !== "MultiThreaded") {
+    throw new Error("The locked sidecar build requires the static MSVC runtime");
+  }
 }
 
-function prepareRuntimeFiles(extractedDir, licensePath) {
-  console.log('Preparing files for Tauri packaging...');
-  for (const file of REQUIRED_FILES) {
-    const src = findExtractedFile(extractedDir, file);
-    if (!src) {
-      throw new Error(`Required runtime file missing from archive: ${file}`);
-    }
-  }
-
-  // Do not destroy a previously valid runtime until every new input has been
-  // downloaded, verified and extracted successfully.
-  if (existsSync(BINARIES_DIR)) {
-    rmSync(BINARIES_DIR, { recursive: true });
-  }
-  mkdirSync(BINARIES_DIR, { recursive: true });
-
-  const serverSrc = findExtractedFile(extractedDir, 'llama-server.exe');
-  const serverName = `llama-server-${TARGET_TRIPLE}.exe`;
-  copyFileSync(serverSrc, join(BINARIES_DIR, serverName));
-  console.log(`  llama-server.exe -> ${serverName}`);
-
-  // DLL names must remain unchanged: the Windows loader resolves these exact
-  // names next to llama-server.exe. Copy all release DLLs so CPU dispatch can
-  // select the correct implementation for the user's processor.
-  const dlls = collectExtractedDlls(extractedDir);
-  for (const dll of dlls) {
-    const name = dll.split(/[\\/]/).pop();
-    copyFileSync(dll, join(BINARIES_DIR, name));
-  }
-  console.log(`  ${dlls.length} runtime DLLs copied with original names`);
-
-  copyFileSync(licensePath, join(BINARIES_DIR, 'llama-server-LICENSE.txt'));
-  console.log('  pinned llama.cpp LICENSE copied');
+function stageCandidate({ builtServer, sourceLicense, stagingDirectory }) {
+  mkdirSync(stagingDirectory, { recursive: true });
+  const packagedServer = join(
+    stagingDirectory,
+    `llama-server-${SIDECAR_MANIFEST.targetTriple}.exe`,
+  );
+  const packagedLicense = join(stagingDirectory, SIDECAR_MANIFEST.license.output);
+  copyFileSync(builtServer, packagedServer);
+  copyFileSync(sourceLicense, packagedLicense);
+  verifySha256(packagedLicense, SIDECAR_MANIFEST.license.sha256);
+  return packagedServer;
 }
 
 async function main() {
-  console.log('=== OverlayTrans Sidecar Preparation ===');
-  console.log(`Runtime: llama.cpp ${LLAMA_CPP.release}`);
-  console.log(`Target: ${TARGET_TRIPLE}`);
-  console.log('');
+  console.log("=== OverlayTrans static sidecar preparation ===");
+  console.log(`Source: ${SIDECAR_MANIFEST.release} ${SIDECAR_MANIFEST.source.revision}`);
+  assertBuildPolicy();
 
-  // Clean temp
-  if (existsSync(TEMP_DIR)) {
-    rmSync(TEMP_DIR, { recursive: true });
+  if (existsSync(temporaryDirectory)) {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
   }
-  mkdirSync(TEMP_DIR, { recursive: true });
+  mkdirSync(temporaryDirectory, { recursive: true });
 
-  const zipPath = join(TEMP_DIR, LLAMA_CPP.asset);
-  const licensePath = join(TEMP_DIR, 'LICENSE');
-
+  const archive = join(temporaryDirectory, SIDECAR_MANIFEST.source.file);
+  const sourceDirectory = join(temporaryDirectory, "source");
+  const buildDirectory = join(temporaryDirectory, "build");
+  const stagingDirectory = join(temporaryDirectory, "binaries-staging");
+  const backupDirectory = join(temporaryDirectory, "binaries-backup");
   let completed = false;
+
   try {
-    // Step 1: Download
-    await downloadFile(LLAMA_CPP.downloadUrl, zipPath);
+    verifyAvx2Host(temporaryDirectory);
+    const tools = findVisualStudioTools();
+    console.log(`Visual Studio: ${tools.installationPath}`);
+    console.log(`MSVC tools: ${tools.msvcVersion}`);
 
-    // Step 2: Verify SHA-256
-    verifySha256(zipPath, LLAMA_CPP.sha256);
+    await downloadFile(SIDECAR_MANIFEST.source.url, archive);
+    verifySha256(archive, SIDECAR_MANIFEST.source.sha256);
+    console.log(`Source SHA-256: ${SIDECAR_MANIFEST.source.sha256}`);
 
-    // The binary archive does not contain the upstream license, so fetch it
-    // from the same pinned release and verify its locked digest.
-    await downloadFile(LLAMA_CPP.licenseUrl, licensePath);
-    verifySha256(licensePath, LLAMA_CPP.licenseSha256);
+    extractSource(archive, sourceDirectory);
+    const sourceLicense = join(sourceDirectory, SIDECAR_MANIFEST.license.sourceFile);
+    if (!existsSync(sourceLicense)) {
+      throw new Error(`Source license is missing: ${sourceLicense}`);
+    }
+    verifySha256(sourceLicense, SIDECAR_MANIFEST.license.sha256);
 
-    // Step 3: Extract
-    const extractedDir = join(TEMP_DIR, 'extracted');
-    await extractFiles(zipPath, extractedDir);
+    runChecked(tools.cmake, cmakeConfigureArguments({ sourceDir: sourceDirectory, buildDir: buildDirectory }));
+    runChecked(tools.cmake, cmakeBuildArguments({ buildDir: buildDirectory }));
 
-    // Step 4: prepare the external binary, DLL resources and license
-    prepareRuntimeFiles(extractedDir, licensePath);
+    const builtServer = findFile(buildDirectory, SIDECAR_MANIFEST.build.output);
+    if (!builtServer) {
+      throw new Error(`Built ${SIDECAR_MANIFEST.build.output} was not found`);
+    }
+    const versionOutput = runChecked(builtServer, ["--version"], { capture: true });
+    assertVersionOutput(versionOutput);
+    const dependencies = parseAndValidatePeDependencies(
+      runChecked(tools.dumpbin, ["/dependents", builtServer], { capture: true }),
+    );
 
-    console.log('');
-    console.log('=== Sidecar preparation complete ===');
-    console.log(`Files placed in: ${BINARIES_DIR}`);
-    console.log('You can now run: npm run tauri build');
+    const packagedServer = stageCandidate({ builtServer, sourceLicense, stagingDirectory });
+    console.log(`Candidate SHA-256: ${sha256(packagedServer)}`);
+    console.log(`Version: ${versionOutput.trim().replace(/\r?\n/g, " | ")}`);
+    console.log(`PE dependencies: ${dependencies.join(", ")}`);
+
+    activateStagedDirectory({
+      liveDir: binariesDirectory,
+      stagingDir: stagingDirectory,
+      backupDir: backupDirectory,
+    });
     completed = true;
-
+    console.log(`Activated: ${binariesDirectory}`);
   } finally {
-    // Keep failed downloads/extractions for diagnostics and retry without
-    // hiding the actual archive layout behind a generic missing-file error.
-    if (completed && existsSync(TEMP_DIR)) {
-      rmSync(TEMP_DIR, { recursive: true });
-    } else if (existsSync(TEMP_DIR)) {
-      console.error(`Temporary files retained for diagnostics: ${TEMP_DIR}`);
+    if (completed && existsSync(temporaryDirectory)) {
+      rmSync(temporaryDirectory, { recursive: true, force: true });
+    } else if (existsSync(temporaryDirectory)) {
+      console.error(`Candidate files retained for diagnosis: ${temporaryDirectory}`);
     }
   }
 }
 
-main().catch((err) => {
-  console.error('Sidecar preparation failed:', err);
-  process.exit(1);
+main().catch((error) => {
+  console.error("Sidecar preparation failed:", error);
+  process.exitCode = 1;
 });

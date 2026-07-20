@@ -110,6 +110,7 @@ code-signed (a certificate costs several hundred USD per year for a free project
 - The Windows OCR language pack for whichever source language you translate
   (*Settings → Time & language → Language & region → your language → Language options*)
 - An API key from any supported provider — **or** ~4 GB of disk space for Local mode
+- Local mode requires an AVX2-compatible processor with FMA, F16C, and BMI2; Speed and Quality modes are unaffected
 
 ## Quick Start
 
@@ -172,6 +173,8 @@ image tokens, so it is a per-title choice rather than a global default.
 **What "Local" actually guarantees.** Local mode does not read your remote provider
 configuration, and there is no fallback path back to the network — if the local runtime fails,
 the translation fails loudly instead of quietly shipping your screen to a third party.
+The bundled Local runtime requires an AVX2-compatible processor with FMA, F16C, and BMI2.
+Speed and Quality modes are unaffected by this CPU requirement.
 
 ### Architecture
 

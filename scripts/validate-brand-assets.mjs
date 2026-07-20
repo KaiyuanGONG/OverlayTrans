@@ -1,7 +1,7 @@
 /** Non-mutating validation for the approved no-hex brand asset set. */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ARTWORK_TRIM_PADDING_RATIO,
@@ -21,7 +21,11 @@ function assert(condition, message) {
 }
 
 function sha256(path) {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+  const bytes = readFileSync(path);
+  const input = [".svg", ".xml"].includes(extname(path).toLowerCase())
+    ? Buffer.from(bytes.toString("utf8").replace(/\r\n?/g, "\n"), "utf8")
+    : bytes;
+  return createHash("sha256").update(input).digest("hex");
 }
 
 async function visibleBounds(sharp, input) {

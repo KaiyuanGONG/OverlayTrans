@@ -9,13 +9,26 @@
 - Node.js 与 npm；
 - Rust stable MSVC toolchain；
 - Visual Studio Build Tools（Desktop development with C++）；
-- 可访问 GitHub 的网络。Tauri 会自动准备 WiX/NSIS，sidecar 脚本会下载锁定的 llama.cpp runtime。
+- 可访问 GitHub 的网络。Tauri 会自动准备 WiX/NSIS，sidecar 脚本会下载锁定的 llama.cpp 源码。
+- 精确版本 `cargo-about 0.8.4` 与 `cargo-deny 0.20.2`，用于许可证发布门禁。
+- 本地模式要求 AVX2 兼容 CPU，并同时支持 FMA、F16C 与 BMI2；在线速度/质量模式不受此限制。
 
 在仓库根目录安装前端依赖：
 
 ```powershell
 npm.cmd ci
 ```
+
+安装并验证固定许可证工具版本：
+
+```powershell
+cargo install --locked --version 0.8.4 cargo-about
+cargo install --locked --version 0.20.2 cargo-deny
+cargo about --version
+cargo deny --version
+```
+
+版本输出必须分别为 `cargo-about 0.8.4` 和 `cargo-deny 0.20.2`。
 
 ## 2. 准备固定版本 sidecar
 
@@ -27,11 +40,13 @@ node scripts/prepare-sidecar.mjs
 
 脚本会：
 
-1. 下载 handoff 锁定的 llama.cpp Windows CPU zip；
-2. 校验 zip 与 LICENSE 的 SHA-256；
-3. 用 Windows 自带的 `tar.exe` 解压；
-4. 把 launcher 按 Tauri external binary 规则命名为 `llama-server-x86_64-pc-windows-msvc.exe`；
-5. 把 DLL 与 LICENSE 放入 `src-tauri/binaries/`。
+1. 下载并校验 llama.cpp `b10068` 固定 revision 的源码 zip；
+2. 用 Windows 自带的 `tar.exe` 解压，并校验源码中的原始 LICENSE；
+3. 检测构建主机支持 AVX2；
+4. 用 Visual Studio 2022 x64 Release、静态 MSVC CRT、`GGML_OPENMP=OFF`、`GGML_BMI2=ON` 构建 `llama-server`；
+5. 运行 `--version` 并用 `dumpbin /dependents` 校验固定 PE 依赖白名单；
+6. 把可执行文件按 Tauri external binary 规则命名为 `llama-server-x86_64-pc-windows-msvc.exe`；
+7. 仅在全部检查通过后事务性替换 `src-tauri/binaries/`，其中只保留静态 EXE 与 `llama-server-LICENSE.txt`。激活失败会恢复先前可用目录。
 
 验证 runtime：
 
@@ -39,7 +54,7 @@ node scripts/prepare-sidecar.mjs
 & .\src-tauri\binaries\llama-server-x86_64-pc-windows-msvc.exe --version
 ```
 
-预期版本为 `10068`。`src-tauri/binaries/` 是下载产物，已被 Git 忽略，不应提交。
+预期版本为 `10068 (571d0d540...)`，且 PE 依赖中不得出现 `libomp`。`src-tauri/binaries/` 是构建产物，已被 Git 忽略，不应提交。
 
 ## 3. 先跑代码门禁
 
@@ -59,8 +74,23 @@ Set-Location ..
 ```powershell
 npm.cmd run test
 npm.cmd run build
+npm.cmd run licenses:check
 git diff --check
 ```
+
+`licenses:check` 会把 Rust 与前端许可证报告重新生成到临时目录，再与仓库中的正文逐字节比较，不会覆盖仓库文件。更新依赖后需要主动刷新报告：
+
+```powershell
+npm.cmd run licenses:generate
+```
+
+在干净的发布工作树运行完整许可证门禁：
+
+```powershell
+npm.cmd run licenses:gate
+```
+
+该命令最后执行 `git status --porcelain=v1 --untracked-files=all`。任何 staged、unstaged 或 untracked 文件都会使门禁失败。
 
 不要并行运行 Vitest 与 Vite build；共享 Vite/Rollup 状态时可能产生无意义的入口冲突。
 
@@ -77,7 +107,7 @@ npm.cmd run tauri build
 1. `beforeBuildCommand`：TypeScript + Vite；
 2. Rust release build；
 3. 将 external binary 的 target triple 输入名转换为安装目录中的 `llama-server.exe`；
-4. 将原名 DLL 与 LICENSE 作为 resources 打包；
+4. 将 llama.cpp 原始许可证、`THIRD_PARTY_NOTICES.md` 以及 Rust/前端完整许可证报告作为 resources 打包；
 5. WiX 生成 MSI；
 6. NSIS 生成 `.exe` 安装器。
 
@@ -117,7 +147,7 @@ Get-Process llama-server -ErrorAction SilentlyContinue |
 `MainWindowHandle` 应为 `0`。
 
 4. 测试托盘显示/隐藏、设置窗口、F8 翻译和退出后 sidecar 清理；
-5. 再执行一次真实 Local 翻译，确认安装目录中的 DLL、LICENSE 与 sidecar 可用。
+5. 再执行一次真实 Local 翻译，确认安装目录中的 LICENSE 与静态 sidecar 可用，并确认没有 `libomp140.x86_64.dll`。
 
 可选：不安装 MSI，只行政解包检查内容：
 

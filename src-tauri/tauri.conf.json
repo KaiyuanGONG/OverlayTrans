@@ -95,7 +95,9 @@
     "externalBin": ["binaries/llama-server"],
     "resources": {
       "icons/icon.ico": "OverlayTrans-3.0.4.ico",
-      "binaries/*.dll": "",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "licenses/RUST_THIRD_PARTY_LICENSES.txt": "RUST_THIRD_PARTY_LICENSES.txt",
+      "licenses/FRONTEND_THIRD_PARTY_LICENSES.txt": "FRONTEND_THIRD_PARTY_LICENSES.txt",
       "binaries/llama-server-LICENSE.txt": ""
     }
   },

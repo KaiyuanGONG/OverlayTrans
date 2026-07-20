@@ -13,6 +13,10 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
+    "licenses:rust": "node scripts/generate-rust-licenses.mjs",
+    "licenses:generate": "node scripts/generate-third-party-licenses.mjs",
+    "licenses:check": "node scripts/check-third-party-licenses.mjs",
+    "licenses:gate": "node scripts/check-license-release-gate.mjs",
     "security:scan": "node scripts/scan-release-secrets.mjs",
     "test:watch": "vitest"
   },

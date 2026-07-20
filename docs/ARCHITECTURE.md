@@ -58,6 +58,7 @@ Configuration version is 3. Remote providers and local execution are separate:
 - Target languages: `zh`, `en`, `ja`
 - Local backend IDs: `bundled_llama_cpp`, `custom_loopback`
 - Local model IDs: `qwen3_4b`, `qwen3_8b`, `custom`
+- Bundled Local inference requires an AVX2-compatible CPU with FMA, F16C, and BMI2; remote Speed and Quality modes are unaffected
 - UI theme: `system`, `light`, `dark` (UI-only preference, no pipeline side-effects)
 
 Legacy fields exist only in private Rust migration DTOs. Saving always emits the canonical V3 schema.

@@ -98,29 +98,44 @@ const MAX_DIAGNOSTIC_CHARS: usize = 400;
 const MAX_LOCAL_WORKER_THREADS: usize = 4;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-const REQUIRED_RUNTIME_COMPANIONS: &[&str] = &[
-    "llama-server-impl.dll",
-    "llama-common.dll",
-    "llama.dll",
-    "ggml.dll",
-    "ggml-base.dll",
-    "ggml-cpu-alderlake.dll",
-    "ggml-cpu-cannonlake.dll",
-    "ggml-cpu-cascadelake.dll",
-    "ggml-cpu-cooperlake.dll",
-    "ggml-cpu-haswell.dll",
-    "ggml-cpu-icelake.dll",
-    "ggml-cpu-ivybridge.dll",
-    "ggml-cpu-piledriver.dll",
-    "ggml-cpu-sandybridge.dll",
-    "ggml-cpu-sapphirerapids.dll",
-    "ggml-cpu-skylakex.dll",
-    "ggml-cpu-sse42.dll",
-    "ggml-cpu-x64.dll",
-    "ggml-cpu-zen4.dll",
-    "libomp140.x86_64.dll",
-    "llama-server-LICENSE.txt",
-];
+const REQUIRED_RUNTIME_COMPANIONS: &[&str] = &["llama-server-LICENSE.txt"];
+const FORBIDDEN_RUNTIME_COMPANIONS: &[&str] = &["libomp140.x86_64.dll"];
+const LOCAL_CPU_REQUIREMENT_ERROR: &str =
+    "本地模式需要支持 AVX2 的处理器；在线速度/质量模式仍可使用。";
+
+#[derive(Debug, Clone, Copy)]
+struct CpuCapabilities {
+    avx2: bool,
+    fma: bool,
+    f16c: bool,
+    bmi2: bool,
+}
+
+impl CpuCapabilities {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    fn detect() -> Self {
+        Self {
+            avx2: std::is_x86_feature_detected!("avx2"),
+            fma: std::is_x86_feature_detected!("fma"),
+            f16c: std::is_x86_feature_detected!("f16c"),
+            bmi2: std::is_x86_feature_detected!("bmi2"),
+        }
+    }
+
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    fn detect() -> Self {
+        Self {
+            avx2: false,
+            fma: false,
+            f16c: false,
+            bmi2: false,
+        }
+    }
+
+    fn supports_bundled_runtime(self) -> bool {
+        self.avx2 && self.fma && self.f16c && self.bmi2
+    }
+}
 
 impl LocalRuntime {
     pub fn new() -> Self {
@@ -136,6 +151,14 @@ impl LocalRuntime {
     #[allow(dead_code)]
     pub fn process(&self) -> &LocalProcessManager {
         &self.process
+    }
+
+    fn ensure_bundled_cpu_supported(&self, capabilities: CpuCapabilities) -> Result<(), String> {
+        if capabilities.supports_bundled_runtime() {
+            Ok(())
+        } else {
+            Err(LOCAL_CPU_REQUIREMENT_ERROR.to_string())
+        }
     }
 
     /// Get full local status.
@@ -379,6 +402,8 @@ impl LocalRuntime {
         local: &LocalConfig,
         app: &tauri::AppHandle,
     ) -> Result<(), String> {
+        self.ensure_bundled_cpu_supported(CpuCapabilities::detect())?;
+
         // Stop existing process
         self.process.stop().await;
 
@@ -675,6 +700,9 @@ fn runtime_directory_complete(directory: &std::path::Path) -> bool {
         && REQUIRED_RUNTIME_COMPANIONS
             .iter()
             .all(|name| directory.join(name).is_file())
+        && FORBIDDEN_RUNTIME_COMPANIONS
+            .iter()
+            .all(|name| !directory.join(name).exists())
 }
 
 fn packaged_sidecar_name() -> &'static str {
@@ -758,15 +786,91 @@ mod tests {
     }
 
     #[test]
-    fn runtime_readiness_requires_launcher_every_dll_and_license() {
+    fn bundled_runtime_accepts_injected_required_cpu_features() {
+        let runtime = LocalRuntime::new();
+        let capabilities = CpuCapabilities {
+            avx2: true,
+            fma: true,
+            f16c: true,
+            bmi2: true,
+        };
+
+        assert!(runtime.ensure_bundled_cpu_supported(capabilities).is_ok());
+    }
+
+    #[test]
+    fn bundled_runtime_rejects_each_missing_injected_cpu_feature() {
+        let runtime = LocalRuntime::new();
+        let missing_feature_cases = [
+            CpuCapabilities {
+                avx2: false,
+                fma: true,
+                f16c: true,
+                bmi2: true,
+            },
+            CpuCapabilities {
+                avx2: true,
+                fma: false,
+                f16c: true,
+                bmi2: true,
+            },
+            CpuCapabilities {
+                avx2: true,
+                fma: true,
+                f16c: false,
+                bmi2: true,
+            },
+            CpuCapabilities {
+                avx2: true,
+                fma: true,
+                f16c: true,
+                bmi2: false,
+            },
+        ];
+
+        for capabilities in missing_feature_cases {
+            assert_eq!(
+                runtime
+                    .ensure_bundled_cpu_supported(capabilities)
+                    .unwrap_err(),
+                "本地模式需要支持 AVX2 的处理器；在线速度/质量模式仍可使用。"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn rejected_cpu_does_not_enter_starting_state() {
+        let runtime = LocalRuntime::new();
+        let result = runtime.ensure_bundled_cpu_supported(CpuCapabilities {
+            avx2: true,
+            fma: true,
+            f16c: true,
+            bmi2: false,
+        });
+
+        assert!(result.is_err());
+        assert_eq!(
+            runtime.process.status().await.server_state,
+            ServerState::Stopped
+        );
+    }
+
+    #[test]
+    fn runtime_readiness_requires_static_launcher_and_license_without_libomp() {
         let directory = tempfile::tempdir().unwrap();
         std::fs::write(directory.path().join(packaged_sidecar_name()), b"exe").unwrap();
-        for name in REQUIRED_RUNTIME_COMPANIONS {
-            std::fs::write(directory.path().join(name), b"fixture").unwrap();
-        }
+        std::fs::write(
+            directory.path().join("llama-server-LICENSE.txt"),
+            b"fixture",
+        )
+        .unwrap();
         assert!(runtime_directory_complete(directory.path()));
 
-        std::fs::remove_file(directory.path().join("llama-server-impl.dll")).unwrap();
+        std::fs::write(directory.path().join("libomp140.x86_64.dll"), b"forbidden").unwrap();
+        assert!(!runtime_directory_complete(directory.path()));
+
+        std::fs::remove_file(directory.path().join("libomp140.x86_64.dll")).unwrap();
+        std::fs::remove_file(directory.path().join("llama-server-LICENSE.txt")).unwrap();
         assert!(!runtime_directory_complete(directory.path()));
     }
 }
