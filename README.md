@@ -109,16 +109,16 @@ code-signed (a certificate costs several hundred USD per year for a free project
 - Windows 10 (1809+) or Windows 11 — OCR uses the Windows Runtime OCR engine
 - The Windows OCR language pack for whichever source language you translate
   (*Settings → Time & language → Language & region → your language → Language options*)
-- An API key from any supported provider — **or** ~4 GB of disk space for Local mode
+- An API key from any supported provider — **or**, for Local mode, about 3 GB of free disk space for the default 4B model (about 6 GB for the 8B model)
 - Local mode requires an AVX2-compatible processor with FMA, F16C, and BMI2; Speed and Quality modes are unaffected
 
 ## Quick Start
 
 1. **Launch OverlayTrans.** A five-step onboarding walks you through mode and provider setup.
 2. **Pick a mode** — start with Speed if you are unsure.
-3. **Add your API key** in *Settings → API*, or download a local model in *Settings → Local*.
+3. **Add your API key** in *Settings → API* — or, for Local mode, download a model and start the runtime in *Settings → Translation*.
 4. **Drag the capture box** over the subtitle or dialogue area of your game.
-5. **Press `F8`** to translate the current frame, or enable **AUTO** for continuous translation.
+5. **Press `F8`** to translate the current frame, or turn on **Auto** for continuous translation.
 
 > The capture box is click-through while you play — it will not steal mouse input from the game.
 
@@ -146,13 +146,14 @@ flowchart LR
     style H fill:#8957e5,stroke:#8957e5,color:#fff
 ```
 
-Every request carries a monotonically increasing **generation ID**. When you move the capture
-box, switch modes, or change any setting that affects meaning, the generation advances and the
-frontend discards in-flight results from the previous one. This is what stops a slow response
-from overwriting a newer line — the classic failure mode of naive streaming overlays.
+Every capture run is tagged with a new, monotonically increasing **generation ID**, and switching
+modes or changing any setting that affects meaning (languages, provider, endpoint, model, context
+size) advances it as well. The frontend discards in-flight results from older generations. This is
+what stops a slow response from overwriting a newer line — the classic failure mode of naive
+streaming overlays.
 
 A change detector compares consecutive captures and skips the whole pipeline when the region
-has not meaningfully changed, so AUTO mode does not burn tokens re-translating a static frame.
+has not meaningfully changed, so Auto mode does not burn tokens re-translating a static frame.
 
 ### The three modes
 
@@ -169,6 +170,10 @@ on decorative fonts, vertical Japanese text, and text over busy artwork — exac
 Visual Novels are full of. Quality mode skips OCR entirely and hands the raw image to a
 multimodal model, which reads layout and styling directly. You pay for that in latency and
 image tokens, so it is a per-title choice rather than a global default.
+
+**When Quality fails.** If an image request fails at runtime (timeout, provider error), OverlayTrans
+retries that frame once through the Speed pipeline and shows a warning in the translation panel.
+Configuration errors, such as a missing image model or key, are reported instead of falling back.
 
 **What "Local" actually guarantees.** Local mode does not read your remote provider
 configuration, and there is no fallback path back to the network — if the local runtime fails,
@@ -196,41 +201,50 @@ Full module map, event contract, and configuration schema: [`docs/ARCHITECTURE.m
 | Provider | Text models | VLM (Quality mode) | Notes |
 |----------|------------|--------------------|-------|
 | **DeepSeek** | `deepseek-v4-flash`, `deepseek-v4-pro` | — | Default; best price/performance for text |
-| **Qwen** | `qwen3.6-flash`, `qwen3.6-plus`, `qwen3.7-plus` | `qwen3.6-flash`, `qwen3.6-plus` | Mainland China & international endpoints |
+| **Qwen** | `qwen3.6-flash`, `qwen3.6-plus`, `qwen3.7-plus` | same | Mainland China & international endpoints |
 | **Gemini** | `gemini-3.1-flash-lite`, `gemini-3.5-flash` | same | Strong multimodal quality |
 | **Groq** | `openai/gpt-oss-20b`, `qwen/qwen3.6-27b`, `openai/gpt-oss-120b` | — | Very fast inference |
 | **OpenAI** | `gpt-5.4-nano`, `gpt-5.4-mini` | `gpt-5.4-mini` | |
 | **Custom** | Any OpenAI-compatible | Optional | Ollama, LM Studio, vLLM, self-hosted |
 
-Local mode runs `qwen3_4b` or `qwen3_8b` on the bundled llama.cpp runtime, or connects to your
+Quality mode uses the *Image Translation* settings in *Settings → API*: either follow the text
+provider or configure a separate image provider, model and key.
+
+Local mode runs Qwen3 4B or 8B (Q4_K_M GGUF) on the bundled llama.cpp runtime, or connects to your
 own loopback server. For safety, custom loopback endpoints are restricted to `127.x`,
 `localhost`, and `::1`.
 
 ## Build from Source
 
-**Prerequisites** — [Node.js](https://nodejs.org/) 18+, [Rust](https://www.rust-lang.org/tools/install) 1.77+,
-Windows 10/11, and the MSVC C++ build tools.
+**Prerequisites** — Windows 10/11, [Node.js](https://nodejs.org/) 20.19+ (or 22.13+ / 24+),
+[Rust](https://www.rust-lang.org/tools/install) stable with the MSVC toolchain, and Visual Studio 2022
+Build Tools with the *Desktop development with C++* workload (MSVC and CMake). Building the llama.cpp
+sidecar also needs network access and an AVX2-capable CPU.
 
 ```bash
 git clone https://github.com/KaiyuanGONG/OverlayTrans.git
 cd OverlayTrans
 
-npm install
-node scripts/prepare-sidecar.mjs   # fetch the llama.cpp sidecar
+npm ci
+node scripts/prepare-sidecar.mjs   # build the pinned llama.cpp sidecar from source (once)
 
 npm run tauri dev                  # development
 npm run tauri build                # production installers
 ```
 
-Installers land in `src-tauri/target/release/bundle/`.
+`src-tauri/binaries/` is git-ignored, so run `prepare-sidecar.mjs` before any `cargo` or `tauri`
+command on a fresh clone. Installers land in `src-tauri/target/release/bundle/`.
 Packaging details and release validation: [`docs/PACKAGING_WINDOWS.md`](docs/PACKAGING_WINDOWS.md).
 
 ### Tests
 
 ```bash
+npm run test                                               # frontend and build-script tests (Vitest)
 cargo test --locked --manifest-path src-tauri/Cargo.toml   # Rust
-npm run test                                               # frontend
 ```
+
+The full pre-release gate (formatting, Clippy, license reports) is listed in
+[`docs/PACKAGING_WINDOWS.md`](docs/PACKAGING_WINDOWS.md).
 
 ## FAQ
 
@@ -250,7 +264,7 @@ No. OCR depends on the Windows Runtime OCR engine, and capture uses Windows GDI.
 would mean replacing both.
 
 **Is my API key sent anywhere?**
-No. It is stored in your local AppData directory and used only to call the provider you
+No. It is stored in `%APPDATA%\OverlayTrans\config.json` and used only to call the provider you
 configured. See [Privacy](#privacy).
 
 **Which mode should I pick?**
@@ -272,9 +286,9 @@ Ideas and votes are welcome in [Issues](https://github.com/KaiyuanGONG/OverlayTr
 
 ## Privacy
 
-- **API keys** live only in your local AppData directory. They are never transmitted anywhere except to the provider you configured.
-- **Local mode** downloads the GGUF model you select on first use. After that, translation runs against the bundled llama.cpp runtime over loopback (`127.0.0.1`); no source text and no screenshots leave your machine.
-- **Speed / Quality modes** send recognized text (or, for VLM, the captured image) to your chosen provider under your own account and their terms.
+- **API keys** are stored only in your user profile (`%APPDATA%\OverlayTrans\config.json`). They are never transmitted anywhere except to the provider you configured.
+- **Local mode** downloads the GGUF model you select only when you click *Download Model*. After that, translation runs against the bundled llama.cpp runtime over loopback (`127.0.0.1`); no source text and no screenshots leave your machine.
+- **Speed / Quality modes** send recognized text (or, for Quality, the captured image) to your chosen provider under your own account and their terms. If a Quality request fails at runtime, the one-time Speed retry sends the recognized text to your text provider.
 - **No telemetry.** OverlayTrans has no analytics, no crash reporting, and no developer-operated servers. The maintainers receive nothing.
 
 ## Contributing

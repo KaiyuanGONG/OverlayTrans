@@ -104,16 +104,16 @@ TODO(asset): 用真实截图替换本节。
 - Windows 10（1809 及以上）或 Windows 11 —— OCR 依赖 Windows Runtime OCR 引擎
 - 对应源语言的 Windows OCR 语言包
   （*设置 → 时间和语言 → 语言和区域 → 对应语言 → 语言选项*）
-- 任一受支持服务商的 API Key —— **或者** 约 4 GB 磁盘空间用于纯本地模式
+- 任一受支持服务商的 API Key —— **或者**（纯本地模式）默认 4B 模型约需 3 GB 可用磁盘空间（8B 模型约 6 GB）
 - 本地模式需要支持 AVX2 的处理器（并支持 FMA、F16C、BMI2）；在线速度/质量模式不受此限制
 
 ## 快速上手
 
 1. **启动 OverlayTrans。** 五步引导会带你完成模式与服务商配置。
 2. **选择模式** —— 拿不准就先用速度模式。
-3. **填入 API Key**（*设置 → API*），或在 *设置 → 本地* 下载本地模型。
+3. **填入 API Key**（*设置 → API 设置*）；纯本地模式则在 *设置 → 翻译引擎* 里下载模型并启动运行时。
 4. **拖动采集框**，对准游戏的字幕或对话区域。
-5. **按 `F8`** 翻译当前画面，或开启 **AUTO** 持续翻译。
+5. **按 `F8`** 翻译当前画面，或打开采集框上的 **自动** 开关持续翻译。
 
 > 采集框在游玩时是鼠标穿透的，不会抢走游戏的鼠标输入。
 
@@ -141,12 +141,12 @@ flowchart LR
     style H fill:#8957e5,stroke:#8957e5,color:#fff
 ```
 
-每次请求都带一个单调递增的**世代 ID（generation ID）**。当你移动采集框、切换模式，或修改任何
-影响语义的设置时，世代号会递增，前端随即丢弃上一世代尚未返回的结果。这样一条慢响应就不会覆盖
-掉更新的一行译文——这正是简单流式悬浮翻译最典型的翻车点。
+每次采集都会分配一个新的、单调递增的**世代 ID（generation ID）**；切换模式或修改任何影响语义的
+设置（语言、服务商、端点、模型、上下文长度）也会让世代号递增。前端会丢弃旧世代尚未返回的结果，
+这样一条慢响应就不会覆盖掉更新的一行译文——这正是简单流式悬浮翻译最典型的翻车点。
 
 同时，变化检测器会比对前后两次采集，画面没有实质变化时直接跳过整条流水线，
-因此 AUTO 模式不会对着静止画面反复烧 token。
+因此自动模式不会对着静止画面反复烧 token。
 
 ### 三档模式对比
 
@@ -162,6 +162,9 @@ flowchart LR
 以及叠在花哨背景上的文字上表现很差——而这些恰恰是视觉小说的常态。质量模式索性跳过 OCR，
 把原始图像直接交给多模态模型，由它同时读版面和字形。代价是更高的延迟和更贵的图像 token，
 所以它更适合按作品切换，而不是当成全局默认。
+
+**质量模式失败时会怎样？** 如果图像请求在运行时失败（超时、服务商报错），OverlayTrans 会对这一帧
+改走一次速度模式，并在翻译面板显示提示；缺少图像模型或 Key 之类的配置错误会直接报错，不会回退。
 
 **"纯本地"到底保证了什么？** 纯本地模式不会读取你的远程服务商配置，也不存在回退到网络的路径——
 本地运行时一旦失败，翻译就明确报错，而不是悄悄把你的屏幕内容发给第三方。
@@ -187,40 +190,46 @@ Tauri 2 外壳、Rust + Tokio 后端、React 18 + TypeScript 前端。
 | 服务商 | 文本模型 | VLM（质量模式） | 备注 |
 |--------|---------|----------------|------|
 | **DeepSeek** | `deepseek-v4-flash`、`deepseek-v4-pro` | — | 默认；文本翻译性价比最佳 |
-| **Qwen** | `qwen3.6-flash`、`qwen3.6-plus`、`qwen3.7-plus` | `qwen3.6-flash`、`qwen3.6-plus` | 国内 / 国际双端点 |
+| **Qwen** | `qwen3.6-flash`、`qwen3.6-plus`、`qwen3.7-plus` | 同左 | 国内 / 国际双端点 |
 | **Gemini** | `gemini-3.1-flash-lite`、`gemini-3.5-flash` | 同左 | 多模态质量强 |
 | **Groq** | `openai/gpt-oss-20b`、`qwen/qwen3.6-27b`、`openai/gpt-oss-120b` | — | 推理速度极快 |
 | **OpenAI** | `gpt-5.4-nano`、`gpt-5.4-mini` | `gpt-5.4-mini` | |
 | **自定义** | 任意 OpenAI 兼容接口 | 可选 | Ollama、LM Studio、vLLM、自建服务 |
 
-纯本地模式可在内置 llama.cpp 上运行 `qwen3_4b` 或 `qwen3_8b`，也可连接你自己的 loopback 服务。
+质量模式使用 *设置 → API 设置* 里的“图像翻译”配置：可以跟随文本配置，也可以单独配置图像服务商、模型和 Key。
+
+纯本地模式可在内置 llama.cpp 上运行 Qwen3 4B 或 8B（Q4_K_M GGUF），也可连接你自己的 loopback 服务。
 出于安全考虑，自定义 loopback 地址仅允许 `127.x`、`localhost` 和 `::1`。
 
 ## 从源码构建
 
-**前置条件** —— [Node.js](https://nodejs.org/) 18+、[Rust](https://www.rust-lang.org/tools/install) 1.77+、
-Windows 10/11，以及 MSVC C++ 生成工具。
+**前置条件** —— Windows 10/11、[Node.js](https://nodejs.org/) 20.19+（或 22.13+ / 24+）、
+[Rust](https://www.rust-lang.org/tools/install) stable（MSVC 工具链），以及带“使用 C++ 的桌面开发”工作负载的
+Visual Studio 2022 生成工具（含 MSVC 与 CMake）。编译 llama.cpp sidecar 还需要联网和支持 AVX2 的 CPU。
 
 ```bash
 git clone https://github.com/KaiyuanGONG/OverlayTrans.git
 cd OverlayTrans
 
-npm install
-node scripts/prepare-sidecar.mjs   # 拉取 llama.cpp sidecar
+npm ci
+node scripts/prepare-sidecar.mjs   # 从锁定版本源码编译 llama.cpp sidecar（只需一次）
 
 npm run tauri dev                  # 开发模式
 npm run tauri build                # 构建正式安装包
 ```
 
-安装包输出在 `src-tauri/target/release/bundle/`。
+`src-tauri/binaries/` 已被 Git 忽略，所以新克隆的仓库要先运行 `prepare-sidecar.mjs`，再执行任何 `cargo` 或
+`tauri` 命令。安装包输出在 `src-tauri/target/release/bundle/`。
 打包细节与发布验证流程见 [`docs/PACKAGING_WINDOWS.md`](docs/PACKAGING_WINDOWS.md)。
 
 ### 测试
 
 ```bash
+npm run test                                               # 前端与构建脚本测试（Vitest）
 cargo test --locked --manifest-path src-tauri/Cargo.toml   # Rust
-npm run test                                               # 前端
 ```
+
+完整的发布前门禁（格式、Clippy、许可证报告）见 [`docs/PACKAGING_WINDOWS.md`](docs/PACKAGING_WINDOWS.md)。
 
 ## 常见问题
 
@@ -238,7 +247,7 @@ npm run test                                               # 前端
 不支持。OCR 依赖 Windows Runtime OCR 引擎，采集依赖 Windows GDI，移植意味着这两块都要换掉。
 
 **我的 API Key 会被上传吗？**
-不会。它只存在于本机 AppData 目录，且仅用于调用你自己配置的服务商，详见[隐私声明](#隐私声明)。
+不会。它只保存在 `%APPDATA%\OverlayTrans\config.json`，且仅用于调用你自己配置的服务商，详见[隐私声明](#隐私声明)。
 
 **我该选哪个模式？**
 横排文字用速度模式，OCR 吃力时用质量模式，不想联网或不想付费时用纯本地模式。
@@ -258,9 +267,9 @@ npm run test                                               # 前端
 
 ## 隐私声明
 
-- **API Key** 只保存在本机 AppData 目录，除了你配置的那家服务商之外不会发往任何地方。
-- **纯本地模式** 首次使用会下载你选择的 GGUF 模型。此后翻译通过内置 llama.cpp 经 loopback（`127.0.0.1`）完成，原文与截图都不会离开你的电脑。
-- **速度 / 质量模式** 会把识别出的文字（质量模式则是采集到的图像）发送给你选定的服务商，使用你自己的账号并遵循其条款。
+- **API Key** 只保存在你的用户目录（`%APPDATA%\OverlayTrans\config.json`），除了你配置的那家服务商之外不会发往任何地方。
+- **纯本地模式** 只有在你点击“下载模型”时才会下载所选的 GGUF 模型。此后翻译通过内置 llama.cpp 经 loopback（`127.0.0.1`）完成，原文与截图都不会离开你的电脑。
+- **速度 / 质量模式** 会把识别出的文字（质量模式则是采集到的图像）发送给你选定的服务商，使用你自己的账号并遵循其条款。质量请求在运行时失败时，那一次速度模式重试会把识别出的文字发给你的文本服务商。
 - **无任何遥测。** OverlayTrans 没有统计分析、没有崩溃上报、没有任何由开发者运营的服务器，作者收不到任何数据。
 
 ## 参与贡献
