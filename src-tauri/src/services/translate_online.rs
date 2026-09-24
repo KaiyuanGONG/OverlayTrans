@@ -714,22 +714,16 @@ fn apply_reasoning_control(
     model: &str,
 ) -> ChatRequest {
     match provider {
-        ProviderId::DeepSeek => {
-            // DeepSeek V4: explicitly disable thinking (V4 may default to thinking on).
-            // Only for known V4 models — unknown DeepSeek models get no params.
-            if model.starts_with("deepseek-v4") {
-                req.thinking = Some(ThinkingConfig {
-                    type_: "disabled".to_string(),
-                });
-            }
+        // DeepSeek V4: explicitly disable thinking (V4 may default to thinking on).
+        ProviderId::DeepSeek if model.starts_with("deepseek-v4") => {
+            req.thinking = Some(ThinkingConfig {
+                type_: "disabled".to_string(),
+            });
         }
-        ProviderId::Qwen => {
-            // Only known hybrid-thinking Qwen models get enable_thinking=false.
-            // qwen3.6-flash, qwen3.6-plus, qwen3.7-plus support it.
-            // Unknown Qwen models get no params to avoid 400.
-            if is_known_qwen_thinking_model(model) {
-                req.enable_thinking = Some(false);
-            }
+        // Only known hybrid-thinking Qwen models get enable_thinking=false.
+        // qwen3.6-flash, qwen3.6-plus, qwen3.7-plus support it.
+        ProviderId::Qwen if is_known_qwen_thinking_model(model) => {
+            req.enable_thinking = Some(false);
         }
         ProviderId::Gemini => {
             // Gemini OpenAI compat: use reasoning_effort.
@@ -738,7 +732,8 @@ fn apply_reasoning_control(
                 req.reasoning_effort = Some(effort.to_string());
             }
         }
-        // Groq/OpenAI/Custom: no vendor-specific reasoning param by default.
+        // Unknown DeepSeek/Qwen models (a stray field can cause a 400) and
+        // Groq/OpenAI/Custom: no vendor-specific reasoning param.
         _ => {}
     }
     req

@@ -47,10 +47,11 @@ fn should_intercept_at(
     let handle_px = (HANDLE_PX * scale).round() as i32 + margin;
     let edge_px = (BORDER_PX.max(EDGE_PX) * scale).round() as i32 + margin;
 
-    let in_corner = (rel_x < handle_px && rel_y < handle_px)
-        || (rel_x >= win_w - handle_px && rel_y < handle_px)
-        || (rel_x < handle_px && rel_y >= win_h - handle_px)
-        || (rel_x >= win_w - handle_px && rel_y >= win_h - handle_px);
+    let near_left = rel_x < handle_px;
+    let near_right = rel_x >= win_w - handle_px;
+    let near_top = rel_y < handle_px;
+    let near_bottom = rel_y >= win_h - handle_px;
+    let in_corner = (near_left || near_right) && (near_top || near_bottom);
 
     let in_title = rel_y < title_h;
     let in_resize_edge = rel_x < edge_px || rel_x >= win_w - edge_px || rel_y >= win_h - edge_px;
