@@ -1,6 +1,6 @@
 /// Perceptual hash-based change detection.
 ///
-/// Uses pHash (DCT-based) to compare consecutive frames.
+/// Uses an 8×8 DoubleGradient image hash (img_hash) to compare consecutive frames.
 /// Only triggers OCR/translation when the screen content meaningfully changes.
 use image::RgbaImage;
 use img_hash::{HasherConfig, ImageHash};

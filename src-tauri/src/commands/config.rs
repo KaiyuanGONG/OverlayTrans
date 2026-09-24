@@ -107,7 +107,7 @@ pub async fn clear_api_key(
     Ok(emit_config_updated(&app, &state, &snapshot))
 }
 
-/// Detect if the new config has semantic changes vs the old one (§3.3).
+/// Detect if the new config has semantic changes vs the old one.
 fn has_semantic_changes(old: &AppConfig, new: &AppConfig) -> bool {
     let old_vision = old.api.resolved_vision_profile();
     let new_vision = new.api.resolved_vision_profile();
@@ -183,7 +183,7 @@ pub async fn set_config(
         crate::services::hotkey::register_hotkey(&app, &new_hotkey);
     }
 
-    // §3.3: Clear translation state + bump generation on semantic change
+    // Clear translation state + bump generation on semantic change
     if semantic_changed {
         let generation = state.next_generation();
         state.clear_translation_state().await;
@@ -443,7 +443,7 @@ mod tests {
 
     #[test]
     fn theme_change_does_not_trigger_semantic_change() {
-        // §T3: theme is a UI preference; changing it must NOT advance
+        // Theme is a UI preference; changing it must NOT advance
         // generation or clear caches.
         use crate::models::config::ThemeMode;
 

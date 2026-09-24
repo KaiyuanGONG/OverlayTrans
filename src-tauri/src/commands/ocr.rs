@@ -9,7 +9,7 @@ pub fn check_ocr_language(lang: String) -> bool {
     ocr_winrt::is_available_for(&lang)
 }
 
-/// Test the currently configured OCR engine against a small region.
+/// Test the WinRT OCR engine against the current capture region.
 /// Returns the recognized text, or an error string.
 #[tauri::command]
 pub async fn test_ocr_engine(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {

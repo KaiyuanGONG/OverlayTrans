@@ -162,7 +162,7 @@ pub async fn start_auto_mode_internal(app: &AppHandle, state: &AppState) -> Resu
             }
             first = false;
 
-            // §5.5: Pipeline mutex — skip if another pipeline is running.
+            // Pipeline mutex — skip if another pipeline is running.
             // Do NOT emit "idle" here — a manual pipeline may be streaming.
             let _guard = match state_pipeline_mutex.try_lock() {
                 Ok(g) => g,
@@ -215,8 +215,8 @@ pub async fn start_auto_mode_internal(app: &AppHandle, state: &AppState) -> Resu
                 *state_screenshot.lock().await = Some((img.as_raw().clone(), w, h));
             }
 
-            // Run OCR + translate — using a dummy AppState ref for generation check.
-            // We inline the pipeline logic here to avoid needing a full AppState ref.
+            // Run OCR + translate with the cloned state handles; the spawned
+            // auto task cannot hold a `State<AppState>`.
             if let Err(e) = emit_ocr_and_translate_auto(
                 &app_clone,
                 &img,
@@ -387,7 +387,7 @@ where
 
 /// The shared OCR → translate → emit pipeline.
 async fn run_pipeline(app: &AppHandle, state: &AppState) -> Result<(), String> {
-    // §5.5: Pipeline mutex — prevent concurrent runs
+    // Pipeline mutex — prevent concurrent runs
     let _guard = match state.pipeline_mutex.try_lock() {
         Ok(guard) => guard,
         Err(_) => return Ok(()),
@@ -506,7 +506,7 @@ async fn run_quality_pipeline(
     translate_online::validate_vlm_configuration(&vision_api)
         .map_err(|error| QualityPipelineError::Configuration(error.to_string()))?;
 
-    // §4.1: Check generation
+    // Check generation
     if state.current_generation() != gen {
         return Err(QualityPipelineError::Stale(
             "Generation changed, aborting stale pipeline".to_string(),
@@ -648,7 +648,7 @@ async fn run_speed_pipeline(
         }
     }
 
-    // §4.1: Check generation
+    // Check generation
     if state.current_generation() != gen {
         anyhow::bail!("Generation changed, aborting stale pipeline");
     }
@@ -684,7 +684,7 @@ async fn run_speed_pipeline(
         .await
         .context("Translation failed")?;
 
-    // §4.1: Verify generation before committing state writes
+    // Verify generation before committing state writes
     if state.current_generation() != gen {
         anyhow::bail!("Generation changed during translation, discarding result");
     }

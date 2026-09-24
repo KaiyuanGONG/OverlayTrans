@@ -1,4 +1,4 @@
-//! Local translation via loopback llama.cpp OpenAI-compatible API (§7.3).
+//! Local translation via loopback llama.cpp OpenAI-compatible API.
 //!
 //! Independent from OnlineTranslator — never reads remote ApiConfig/api_key.
 //! Only consumes LocalConfig and local runtime state.
@@ -15,7 +15,7 @@ use crate::services::translate_online::{
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §7.6 Custom Loopback URL Validation
+// Custom loopback URL validation
 // ══════════════════════════════════════════════════════════════════════════════
 
 /// Validate that a URL is a legal loopback endpoint.
@@ -77,7 +77,7 @@ fn is_loopback_host(host: &str) -> bool {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §7.7 Local Translator
+// Local translator
 // ══════════════════════════════════════════════════════════════════════════════
 
 /// Local-only translator — consumes LocalConfig, never remote ApiConfig.
@@ -353,7 +353,7 @@ pub fn strip_think_tags(text: &str) -> String {
     result.trim().to_string()
 }
 
-/// Compute the local cache key (§4.4).
+/// Compute the local cache key.
 #[allow(dead_code)]
 pub fn local_cache_key(
     source: &str,
@@ -448,7 +448,7 @@ mod tests {
         (format!("http://{address}/v1"), handle)
     }
 
-    // ── Loopback URL validation tests (§7.6) ──
+    // ── Loopback URL validation tests ──
 
     #[test]
     fn loopback_localhost_accepted() {

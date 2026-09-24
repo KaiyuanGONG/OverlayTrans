@@ -52,7 +52,7 @@ fn make_quality_system_prompt(target_lang: &TargetLang) -> String {
 
 // ── Chat API types ────────────────────────────────────────────────────────
 
-/// Content block for multi-modal messages (VLM mode, P2).
+/// Content block for multi-modal messages (Quality/VLM mode).
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum ContentPart {
@@ -284,7 +284,7 @@ pub(crate) fn validate_vlm_configuration(
     validate_vlm_configuration_with_overrides(api_config, get_local_api_overrides().as_ref())
 }
 
-// ── Translation LRU cache (§5.3) ─────────────────────────────────────────
+// ── Translation LRU cache ─────────────────────────────────────────────────
 
 const CACHE_CAPACITY: usize = 200;
 
@@ -421,7 +421,7 @@ impl TranslateCache {
     }
 }
 
-/// Composite cache key for translation results (§4.4).
+/// Composite cache key for translation results.
 /// Includes all semantic fields that affect translation output.
 /// For Quality mode, `image_digest` replaces `normalized_source` as the primary key.
 #[derive(Hash, Eq, PartialEq, Clone)]
@@ -585,7 +585,7 @@ fn get_cache() -> &'static Mutex<TranslateCache> {
     TRANSLATE_CACHE.get_or_init(|| Mutex::new(TranslateCache::new()))
 }
 
-/// Clear the translation cache. Called when semantic config changes (§3.3).
+/// Clear the translation cache. Called when semantic config changes.
 pub async fn clear_cache() {
     let mut cache = get_cache().lock().await;
     *cache = TranslateCache::new();
@@ -661,7 +661,7 @@ fn load_local_api_overrides() -> Option<LocalApiOverrides> {
     None
 }
 
-// ── URL construction (§2.1) ───────────────────────────────────────────────
+// ── URL construction ──────────────────────────────────────────────────────
 
 /// Check if a URL path already contains a version/API segment that indicates
 /// we should only append `/chat/completions` (not `/v1/chat/completions`).
@@ -673,7 +673,7 @@ fn path_has_version_segment(path: &str) -> bool {
 }
 
 /// Build the chat completions URL from a base_url using URL path analysis.
-/// Handles all provider URL patterns per handoff §2.1.
+/// Handles every provider URL pattern (versioned paths, full endpoints, custom bases).
 /// Returns Err for non-http(s) URLs or unparseable URLs.
 /// Prevents duplicate `/v1/v1` or `/chat/completions/chat/completions`.
 pub fn build_chat_url(base_url: &str) -> Result<String, String> {
@@ -703,10 +703,10 @@ pub fn build_chat_url(base_url: &str) -> Result<String, String> {
     Ok(url.to_string())
 }
 
-// ── Reasoning control (§2.1) ──────────────────────────────────────────────
+// ── Reasoning control ─────────────────────────────────────────────────────
 
 /// Add model-specific reasoning-disable params to the request.
-/// Per handoff §2.2: params are by MODEL capability, not just provider.
+/// Params are chosen by MODEL capability, not just provider.
 /// Unknown models get NO vendor-specific fields to avoid 400 errors.
 fn apply_reasoning_control(
     mut req: ChatRequest,
@@ -767,7 +767,7 @@ fn gemini_reasoning_effort(model: &str) -> Option<&'static str> {
     }
 }
 
-// ── SSE parser (§4.3) ─────────────────────────────────────────────────────
+// ── SSE parser ────────────────────────────────────────────────────────────
 
 #[derive(Default)]
 pub(crate) struct SseParser {
@@ -1106,7 +1106,7 @@ impl OnlineTranslator {
     }
 
     /// Translate with LRU cache lookup. On cache miss, calls streaming translate.
-    /// Cache key includes all semantic fields (§4.4): source, target, provider,
+    /// Cache key includes all semantic fields: source, target, provider,
     /// endpoint, model, mode, prompt version, context digest.
     /// On cache hit, calls `on_chunk` with full text for UI consistency.
     pub async fn translate_with_cache<F, G>(
@@ -2370,7 +2370,7 @@ mod tests {
         );
     }
 
-    // ── URL construction tests (§2.1) — table-driven ──
+    // ── URL construction tests — table-driven ──
 
     #[test]
     fn build_chat_url_all_providers() {
@@ -2928,7 +2928,7 @@ mod tests {
         assert!(ja.contains("日本語"));
     }
 
-    // ── Composite cache key tests (§4.4) ──
+    // ── Composite cache key tests ──
 
     fn make_test_api_config() -> ApiConfig {
         ApiConfig {

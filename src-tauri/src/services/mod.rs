@@ -23,7 +23,7 @@ use tokio::sync::{Mutex, Notify};
 pub type ScreenshotData = (Vec<u8>, u32, u32);
 
 /// Monotonically increasing generation counter.
-/// Every config semantic change or reset increments this.
+/// Each capture run, semantic config change, reset and API-key clear increments it.
 /// All pipeline writes (chunk/result/status/error/cache/context/last_ocr)
 /// must verify their generation matches the current one before committing.
 pub type Generation = u64;
@@ -44,21 +44,21 @@ pub struct AppState {
     /// Monotonic acknowledgement ID for config-updated events. Webviews use it
     /// to reject delayed acknowledgements from older full-snapshot writes.
     pub config_revision: Arc<AtomicU64>,
-    /// Translation context history (most recent first)
+    /// Translation context history (oldest first, trimmed to `context_size`)
     pub context: Arc<Mutex<Vec<ContextEntry>>>,
     /// Last perceptual hash for change detection
     pub last_phash: Arc<Mutex<Option<img_hash::ImageHash>>>,
     /// Last OCR source text that produced a translation result
     pub last_ocr_text: Arc<Mutex<Option<String>>>,
-    /// Auto-mode cancellation token
+    /// Auto-mode task handle; aborted to stop Auto mode
     pub auto_mode_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
     /// Wakes the auto cadence when its interval changes.
     pub auto_mode_notify: Arc<Notify>,
     /// Raw RGBA pixels from the most recent capture, for settings preview
     pub last_screenshot_raw: Arc<Mutex<Option<ScreenshotData>>>,
-    /// Pipeline mutex — prevents concurrent translation runs (§5.5)
+    /// Pipeline mutex — prevents concurrent translation runs
     pub pipeline_mutex: Arc<Mutex<()>>,
-    /// Generation counter — incremented on config semantic change or reset.
+    /// Generation counter — incremented per capture run and on semantic config change or reset.
     /// Old pipeline results with stale generation are discarded.
     pub generation: Arc<AtomicU64>,
     /// Local runtime manager for llama.cpp process lifecycle.
@@ -89,7 +89,7 @@ impl AppState {
     }
 
     /// Increment generation and return the new value.
-    /// Called on config semantic change or reset.
+    /// Called for every capture run and on semantic config change or reset.
     pub fn next_generation(&self) -> Generation {
         self.generation.fetch_add(1, Ordering::SeqCst) + 1
     }
@@ -149,7 +149,7 @@ impl AppState {
     }
 
     /// Clear all translation state (cache, context, last_ocr, phash).
-    /// Called on semantic config change (§3.3).
+    /// Called on semantic config change.
     pub async fn clear_translation_state(&self) {
         translate_online::clear_cache().await;
         self.context.lock().await.clear();

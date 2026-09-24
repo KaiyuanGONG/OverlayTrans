@@ -1,4 +1,4 @@
-//! GGUF model manifest and download management for local mode (§7.2).
+//! GGUF model manifest and download management for local mode.
 //!
 //! Fixed manifests for Qwen3 GGUF models with pinned revisions, SHA-256, and licenses.
 //! Downloads to temp file → verify → atomic rename. No `main`/`latest`/floating URLs.
@@ -19,7 +19,7 @@ struct VerificationStamp {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §7.2 Fixed GGUF Manifest — TIME-SENSITIVE, checked 2026-07-18
+// Fixed GGUF manifest — time-sensitive, last checked 2026-07-18
 // ══════════════════════════════════════════════════════════════════════════════
 
 /// A pinned GGUF model manifest with fixed revision and SHA-256.

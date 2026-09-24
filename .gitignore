@@ -1,4 +1,6 @@
+# Local PowerShell launchers (may hold credentials)
 *.ps1
+
 # Node / npm
 node_modules/
 dist/
@@ -7,7 +9,7 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
-# Sidecar binaries (downloaded at build time)
+# Sidecar binaries (built by scripts/prepare-sidecar.mjs)
 src-tauri/binaries/
 
 # Editor
@@ -18,7 +20,6 @@ src-tauri/binaries/
 .env
 .env.local
 .envrc
-
 
 # OverlayTrans private files (developer-only, not for public repo)
 _docs/

@@ -1,7 +1,8 @@
-//! Tauri commands for local mode management (§10).
+//! Tauri commands for local mode management.
 //!
 //! Commands: get_local_status, download_local_model, cancel_local_model_download,
-//!           delete_local_model, test_local_runtime, stop_local_runtime
+//!           delete_local_model, test_local_runtime, start_local_runtime,
+//!           stop_local_runtime
 
 use tauri::{AppHandle, State};
 

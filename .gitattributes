@@ -19,7 +19,6 @@
 *.jpg     binary
 *.ico     binary
 *.icns    binary
-*.onnx    binary
 *.zip     binary
 *.dll     binary
 *.exe     binary

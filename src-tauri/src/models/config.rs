@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §3.1 Canonical runtime schema — NO legacy fields
+// Canonical runtime schema — NO legacy fields
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── RemoteProviderId — §1.2: deepseek/qwen/gemini/groq/openai/custom ──────
+// ── RemoteProviderId — deepseek/qwen/gemini/groq/openai/custom ────────────
 // "local" is NOT a remote provider; it belongs to LocalConfig.
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -67,7 +67,8 @@ impl RemoteProviderId {
     }
 
     /// All presets in display order.
-    /// Models per handoff §2 (TIME-SENSITIVE, checked 2026-07-18).
+    /// Model presets are time-sensitive (last checked 2026-07-18);
+    /// re-verify them before a release (see docs/PACKAGING_WINDOWS.md).
     pub fn all_presets() -> &'static [ProviderPreset] {
         &[
             ProviderPreset {
@@ -152,7 +153,7 @@ impl RemoteProviderId {
     }
 }
 
-// ── Language enums (§4.1) ─────────────────────────────────────────────────
+// ── Language enums ────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub enum SourceLang {
@@ -222,7 +223,7 @@ impl TargetLang {
     }
 }
 
-// ── Translation mode (§3) ─────────────────────────────────────────────────
+// ── Translation mode ──────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub enum TranslationMode {
@@ -254,7 +255,7 @@ pub enum TriggerMode {
     Auto,
 }
 
-// ── Qwen region (§2) ──────────────────────────────────────────────────────
+// ── Qwen region ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub enum QwenRegion {
@@ -274,7 +275,7 @@ impl QwenRegion {
     }
 }
 
-// ── Local config (§1.2, §7) ──────────────────────────────────────────────
+// ── Local config ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub enum LocalBackend {
@@ -299,7 +300,7 @@ pub enum LocalModel {
     Custom,
 }
 
-/// Local-only configuration — §1.2: separate from remote ApiConfig.
+/// Local-only configuration, kept separate from the remote ApiConfig.
 /// Never reads remote API keys; never falls back to remote services.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct LocalConfig {
@@ -314,7 +315,7 @@ pub struct LocalConfig {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §3.1 Canonical config structs — NO legacy fields
+// Canonical config structs — NO legacy fields
 // ══════════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -769,7 +770,7 @@ impl Default for AppConfig {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §3.2 Private legacy DTOs — used ONLY for migration, never in runtime types
+// Private legacy DTOs — used ONLY for migration, never in runtime types
 // ══════════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Deserialize)]
@@ -860,7 +861,7 @@ struct LegacyTriggerConfig {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §3.2 Migration: v2 JSON → canonical v3 AppConfig
+// Migration: v2 JSON → canonical v3 AppConfig
 // ══════════════════════════════════════════════════════════════════════════════
 
 /// Try to deserialize as canonical v3 first. If that fails, try legacy v2 migration.
@@ -1296,7 +1297,7 @@ mod tests {
         );
     }
 
-    // ── v2→v3 migration tests (§3.2) ──
+    // ── v2→v3 migration tests ──
 
     #[test]
     fn migrate_v2_no_direction_defaults_to_en_zh() {
@@ -1502,7 +1503,7 @@ mod tests {
         assert!(RemoteProviderId::from_base_url("https://custom.api.com").is_none());
     }
 
-    // ── SourceLang OCR validation tests (§5) ──
+    // ── SourceLang OCR validation tests ──
 
     #[test]
     fn source_lang_auto_rejects_ocr() {

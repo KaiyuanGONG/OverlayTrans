@@ -1,7 +1,7 @@
 /// Global hotkey registration via tauri-plugin-global-shortcut.
 ///
 /// On hotkey press, emits a Tauri event "hotkey-triggered" to all windows,
-/// which the capture command handler picks up to run the translation pipeline.
+/// which the capture window listens for to trigger a translation.
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 

@@ -1,8 +1,7 @@
 /// Screen capture service.
 ///
-/// Uses GDI BitBlt for Sprint 1 (reliable, works everywhere).
-/// Windows Graphics Capture API integration is planned for Sprint 3
-/// (better performance, works with hardware-accelerated windows).
+/// Uses GDI BitBlt (reliable and simple). Windows Graphics Capture could
+/// handle some hardware-accelerated windows better; it is not implemented.
 use anyhow::{Context, Result};
 use image::RgbaImage;
 
@@ -47,7 +46,7 @@ fn capture_gdi(region: LogicalRect) -> Result<RgbaImage> {
         )
         .context("BitBlt failed")?;
 
-        // Prepare to read pixel data (BGRA bottom-up DIB)
+        // Prepare to read pixel data (BGRA top-down DIB)
         let bmi = BITMAPINFO {
             bmiHeader: BITMAPINFOHEADER {
                 biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,

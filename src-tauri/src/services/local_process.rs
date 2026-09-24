@@ -1,4 +1,4 @@
-//! Local llama-server process lifecycle management (§7.3, §7.5).
+//! Local llama-server process lifecycle management.
 //!
 //! State machine: Stopped → Starting → Healthy → Stopping → Stopped
 //! Handles model switching, health checks, and cleanup on exit.
@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §7.5 Process State Machine
+// Process state machine
 // ══════════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

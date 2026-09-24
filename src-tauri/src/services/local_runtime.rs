@@ -1,4 +1,4 @@
-//! Local runtime orchestrator — ties model download, process lifecycle, and health (§7).
+//! Local runtime orchestrator — ties model download, process lifecycle, and health.
 //!
 //! This module manages the complete local mode lifecycle:
 //! - Model download with progress/cancel/SHA verification
@@ -23,7 +23,7 @@ use crate::services::local_process::{self, LocalProcessManager, ServerState};
 use crate::services::translate_local;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §7.4 Local Status — NOT persisted in config, derived from real state
+// Local status — NOT persisted in config, derived from real state
 // ══════════════════════════════════════════════════════════════════════════════
 
 /// Model download/verification state.
