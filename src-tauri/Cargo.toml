@@ -39,7 +39,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 image = { version = "0.23", default-features = false, features = ["png", "jpeg", "bmp"] }
 img_hash = "3"
 
-# Crypto / fingerprinting
+# Hashing and encoding (download verification, cache keys, image data URLs)
 sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
@@ -48,14 +48,13 @@ base64 = "0.22"
 anyhow = "1"
 thiserror = "1"
 
-# URL parsing (§2.1)
+# URL parsing (provider endpoints, loopback validation)
 url = "2"
 
 # Logging
 log = "0.4"
 
-# Async channels
-tokio-stream = "0.1"
+# Stream combinators (SSE and download bodies)
 futures-util = "0.3"
 
 # Platform directories (AppData path)
@@ -63,10 +62,8 @@ dirs-next = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
-  # WinRT foundation
+  # WinRT foundation + COM (shortcut refresh)
   "Foundation",
-  "Foundation_Collections",
-  "Win32_System_WinRT",
   "Win32_System_Com",
   # OCR (WinRT) — Windows.Media.Ocr, Windows.Graphics.Imaging, Windows.Storage
   "Media_Ocr",
@@ -82,9 +79,7 @@ windows = { version = "0.58", features = [
   "Win32_UI_Shell",
   # Mouse-button state (freeze pass-through toggling mid-drag)
   "Win32_UI_Input_KeyboardAndMouse",
-  # Registry (device fingerprint)
-  "Win32_System_Registry",
-  # GGUF download disk-space preflight
+  # Disk-space preflight, atomic file replace, shortcut target paths
   "Win32_Storage_FileSystem",
 ] }
 

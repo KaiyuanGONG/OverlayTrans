@@ -39,7 +39,7 @@ The generator requires exactly `cargo-about 0.8.4` and `cargo-deny 0.20.2`. `abo
 
 ### cargo-about 0.8.4 compatibility evidence
 
-Against the current locked runtime graph, cargo-about covers 270 of 287 Package IDs and omits 17 registry packages: `chrono@0.4.43`, `futures-io@0.3.32`, `hashbrown@0.12.3`, `indexmap@1.9.3`, `lru-slab@0.1.2`, `quinn-proto@0.11.13`, `quinn-udp@0.5.14`, `quinn@0.11.9`, `rand@0.9.2`, `rand_chacha@0.9.0`, `rand_core@0.9.5`, `ref-cast@1.0.25`, `rustc-hash@2.1.1`, `schemars@0.9.0`, `schemars@1.2.1`, `tinyvec@1.10.0`, and `tinyvec_macros@0.1.1`.
+Against the current locked runtime graph, cargo-about covers 269 of 286 Package IDs and omits 17 registry packages: `chrono@0.4.43`, `futures-io@0.3.32`, `hashbrown@0.12.3`, `indexmap@1.9.3`, `lru-slab@0.1.2`, `quinn-proto@0.11.13`, `quinn-udp@0.5.14`, `quinn@0.11.9`, `rand@0.9.2`, `rand_chacha@0.9.0`, `rand_core@0.9.5`, `ref-cast@1.0.25`, `rustc-hash@2.1.1`, `schemars@0.9.0`, `schemars@1.2.1`, `tinyvec@1.10.0`, and `tinyvec_macros@0.1.1`.
 
 The registry fallback exists only for this verified limitation. It resolves each exact package through Cargo metadata `manifest_path`, checks the Cargo.lock checksum against Cargo-vendored `.cargo-checksum.json`, and verifies every included `LICENSE*`, `COPYING*`, and `NOTICE*` file hash. Git or path dependencies fail without an explicit checksum-bound clarification. The cargo-about and fallback sets must be disjoint and their union must exactly equal the Windows runtime graph. A future cargo-about upgrade should re-run this set comparison and remove the fallback when it is no longer needed.
 
