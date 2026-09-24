@@ -3,10 +3,6 @@ import type { ApiConfig, PresetInfo, QwenRegion, SourceLang, TargetLang, Transla
 export const SUPPORTED_SOURCE_LANGS = ["en", "zh", "ja"] as const satisfies readonly SourceLang[];
 export const SUPPORTED_TARGET_LANGS = ["zh", "en", "ja"] as const satisfies readonly TargetLang[];
 
-/// All V3 modes are enabled; retain this exported empty contract for callers
-/// that render capability-based disabled states.
-export const P1_DISABLED_MODES = [] as const satisfies readonly TranslationMode[];
-
 export function resolvePresetBaseUrl(
   preset: PresetInfo | undefined,
   qwenRegion: QwenRegion | null | undefined,

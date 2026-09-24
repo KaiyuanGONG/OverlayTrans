@@ -98,7 +98,7 @@ impl LocalProcessManager {
     }
 
     /// Check if the process is healthy.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub async fn is_healthy(&self) -> bool {
         let status = self.status.lock().await;
         status.server_state == ServerState::Healthy
@@ -175,7 +175,7 @@ impl LocalProcessManager {
     }
 
     /// Check if the child process is still running.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub async fn check_child_alive(&self) -> bool {
         let mut child = self.child.lock().await;
         if let Some(ref mut c) = *child {

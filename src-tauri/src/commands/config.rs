@@ -134,8 +134,6 @@ pub async fn set_config(
         let current = state.config.lock().await;
         clear_reused_key_on_provider_change(&current, &mut config);
     }
-    // Validate mode — reject unimplemented modes
-    crate::models::config::validate_mode(&config.translation.mode)?;
 
     // Snapshot old config for comparison (lock released after this block)
     let (old_hotkey, old_mode, old_interval_ms, old_translation_mode, old_local, semantic_changed) = {
@@ -190,13 +188,10 @@ pub async fn set_config(
         emit_generation_reset(&app, generation);
     }
 
-    // Trigger mode change — reject Auto for unimplemented modes
+    // Trigger mode change
     if new_mode != old_mode {
         match new_mode {
             TriggerMode::Auto => {
-                // Reject auto mode when translation mode is not implemented
-                let current_mode = state.config.lock().await.translation.mode.clone();
-                crate::models::config::validate_mode(&current_mode)?;
                 super::capture::start_auto_mode_internal(&app, &state).await?;
             }
             TriggerMode::Manual => {
@@ -340,14 +335,9 @@ pub async fn apply_startup_mode(
     state: State<'_, AppState>,
     app: tauri::AppHandle,
 ) -> Result<bool, String> {
-    let (trigger_mode, trans_mode) = {
-        let cfg = state.config.lock().await;
-        (cfg.trigger.mode.clone(), cfg.translation.mode.clone())
-    };
+    let trigger_mode = state.config.lock().await.trigger.mode.clone();
     match trigger_mode {
         TriggerMode::Auto => {
-            // Reject auto if translation mode not implemented
-            crate::models::config::validate_mode(&trans_mode)?;
             super::capture::start_auto_mode_internal(&app, &state).await?;
             Ok(true)
         }
@@ -372,9 +362,6 @@ pub async fn set_trigger_mode(
     };
 
     let mut updated = state.config.lock().await.clone();
-    if matches!(trigger_mode, TriggerMode::Auto) {
-        crate::models::config::validate_mode(&updated.translation.mode)?;
-    }
     updated.trigger.mode = trigger_mode.clone();
     state
         .save_config_snapshot(&updated)

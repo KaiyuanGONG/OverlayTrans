@@ -26,8 +26,3 @@ export interface TranslationResult {
   latency_ms: number;
   generation: number;
 }
-
-export interface TriggerEvent {
-  mode: "manual" | "auto";
-  timestamp: number;
-}

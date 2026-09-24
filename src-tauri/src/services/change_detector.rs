@@ -30,25 +30,6 @@ pub fn has_changed(img: &RgbaImage, last_hash: &mut Option<ImageHash>, threshold
     }
 }
 
-/// Text-level deduplication: if the recognized text is very similar to the
-/// previous result, skip re-translation (useful for video with slow-changing subs).
-///
-/// Uses a simple character-level Jaccard similarity.
-#[allow(dead_code)]
-pub fn text_is_similar(a: &str, b: &str, threshold: f32) -> bool {
-    if a.is_empty() || b.is_empty() {
-        return false;
-    }
-    let set_a: std::collections::HashSet<char> = a.chars().collect();
-    let set_b: std::collections::HashSet<char> = b.chars().collect();
-    let intersection = set_a.intersection(&set_b).count();
-    let union = set_a.union(&set_b).count();
-    if union == 0 {
-        return true;
-    }
-    intersection as f32 / union as f32 >= threshold
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,15 +54,5 @@ mod tests {
         let mut last = None;
         assert!(has_changed(&img_a, &mut last, 4));
         assert!(has_changed(&img_b, &mut last, 0));
-    }
-
-    #[test]
-    fn text_similarity() {
-        assert!(text_is_similar("hello world", "hello world", 0.9));
-        assert!(!text_is_similar(
-            "hello world",
-            "completely different text",
-            0.9
-        ));
     }
 }

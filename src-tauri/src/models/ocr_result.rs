@@ -23,17 +23,6 @@ pub struct OcrResult {
 }
 
 impl OcrResult {
-    #[allow(dead_code)]
-    pub fn empty(engine: &str) -> Self {
-        Self {
-            text: String::new(),
-            confidences: Vec::new(),
-            boxes: Vec::new(),
-            engine: engine.to_string(),
-            latency_ms: 0,
-        }
-    }
-
     pub fn is_empty(&self) -> bool {
         self.text.trim().is_empty()
     }

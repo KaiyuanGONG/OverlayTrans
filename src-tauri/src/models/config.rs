@@ -236,14 +236,6 @@ pub enum TranslationMode {
     Local,
 }
 
-/// Validate that the translation mode is implemented.
-/// Returns Ok(()) for Speed, Quality, and Local.
-pub fn validate_mode(mode: &TranslationMode) -> Result<(), String> {
-    match mode {
-        TranslationMode::Speed | TranslationMode::Quality | TranslationMode::Local => Ok(()),
-    }
-}
-
 // ── Trigger mode ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

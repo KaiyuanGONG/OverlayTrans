@@ -19,11 +19,9 @@ interface TranslationStore {
   addTranslation: (entry: TranslationEntry, generation: number) => void;
   setStatus: (status: AppStatus, generation: number, error?: string) => void;
   setAutoMode: (enabled: boolean) => void;
-  clearHistory: () => void;
   // Streaming actions
   startStreaming: (generation: number) => void;
   appendChunk: (chunk: string, generation: number) => void;
-  finishStreaming: () => void;
   // Warning action (sticky — not cleared by done/idle)
   setWarning: (message: string, generation: number) => void;
   clearWarning: () => void;
@@ -74,8 +72,6 @@ export const useTranslationStore = create<TranslationStore>((set) => ({
 
   setAutoMode: (enabled) => set({ isAutoMode: enabled }),
 
-  clearHistory: () => set({ history: [] }),
-
   startStreaming: (generation) =>
     set((state) => {
       if (generation < state.currentGeneration) return state;
@@ -98,8 +94,6 @@ export const useTranslationStore = create<TranslationStore>((set) => ({
         currentGeneration: generation,
       };
     }),
-
-  finishStreaming: () => set({ isStreaming: false }),
 
   setWarning: (message, generation) =>
     set((state) => {

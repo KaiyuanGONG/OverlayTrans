@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CONFIG, type AppConfig, type PresetInfo } from "@/types/config";
 import {
-  P1_DISABLED_MODES,
   apiTestAvailable,
   qualityCapability,
   resolvedVisionProfile,
@@ -342,10 +341,6 @@ describe("TranslationMode", () => {
   it("speed mode is available", () => {
     expect(DEFAULT_CONFIG.translation.mode).toBe("speed");
   });
-
-  it("all modes are enabled (quality P2, local P3)", () => {
-    expect(P1_DISABLED_MODES).toEqual([]);
-  });
 });
 
 describe("SourceLang", () => {
@@ -477,13 +472,5 @@ describe("Independent image API profile", () => {
     expect(next.api_key).toBe("text-secret");
     expect(next.vision.provider).toBe("gemini");
     expect(next.vision.api_key).toBe("");
-  });
-});
-
-describe("Disabled modes", () => {
-  it("all modes are enabled (quality P2, local P3)", () => {
-    expect(P1_DISABLED_MODES).toEqual([]);
-    expect(P1_DISABLED_MODES).not.toContain("quality");
-    expect(P1_DISABLED_MODES).not.toContain("local");
   });
 });

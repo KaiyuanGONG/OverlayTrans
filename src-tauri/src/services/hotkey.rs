@@ -42,9 +42,3 @@ pub fn register_hotkey(app: &AppHandle, hotkey: &str) {
         }
     }
 }
-
-/// Unregister all global shortcuts.
-#[allow(dead_code)]
-pub fn unregister_all(app: &AppHandle) {
-    let _ = app.global_shortcut().unregister_all();
-}

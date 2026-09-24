@@ -147,12 +147,6 @@ impl LocalRuntime {
         }
     }
 
-    /// Get the process manager reference.
-    #[allow(dead_code)]
-    pub fn process(&self) -> &LocalProcessManager {
-        &self.process
-    }
-
     fn ensure_bundled_cpu_supported(&self, capabilities: CpuCapabilities) -> Result<(), String> {
         if capabilities.supports_bundled_runtime() {
             Ok(())

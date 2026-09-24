@@ -131,9 +131,6 @@ pub async fn start_auto_mode(app: AppHandle, state: State<'_, AppState>) -> Resu
 }
 
 pub async fn start_auto_mode_internal(app: &AppHandle, state: &AppState) -> Result<(), String> {
-    let translation_mode = state.config.lock().await.translation.mode.clone();
-    crate::models::config::validate_mode(&translation_mode)?;
-
     let mut handle_lock = state.auto_mode_handle.lock().await;
 
     // Abort any existing auto-mode task
@@ -173,11 +170,6 @@ pub async fn start_auto_mode_internal(app: &AppHandle, state: &AppState) -> Resu
             let gen = state_gen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
 
             let cfg = state_config.lock().await.clone();
-
-            // Reject auto mode for unimplemented modes
-            if crate::models::config::validate_mode(&cfg.translation.mode).is_err() {
-                continue;
-            }
 
             let region = match compute_ocr_region(&app_clone, &cfg.capture_region) {
                 Ok(region) => region,
@@ -447,7 +439,6 @@ async fn emit_ocr_and_translate(
     gen: Generation,
 ) -> anyhow::Result<()> {
     let mode = &cfg.translation.mode;
-    crate::models::config::validate_mode(mode).map_err(|e| anyhow::anyhow!(e))?;
 
     match mode {
         TranslationMode::Quality => run_quality_with_one_fallback(
@@ -1067,8 +1058,6 @@ async fn emit_ocr_and_translate_auto(
         tokio::sync::RwLock<crate::services::local_runtime::LocalRuntime>,
     >,
 ) -> anyhow::Result<()> {
-    crate::models::config::validate_mode(&cfg.translation.mode).map_err(|e| anyhow::anyhow!(e))?;
-
     match cfg.translation.mode {
         TranslationMode::Quality => run_quality_with_one_fallback(
             || run_quality_pipeline_auto(app, img, context, cfg, gen, generation),
@@ -1384,10 +1373,7 @@ pub async fn get_last_screenshot(state: State<'_, AppState>) -> Result<Option<St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::config::{
-        validate_mode, ApiConfig, CaptureRegion, RemoteProviderId, TranslationMode,
-        VisionProfileMode,
-    };
+    use crate::models::config::{ApiConfig, CaptureRegion, RemoteProviderId, VisionProfileMode};
 
     #[tokio::test(start_paused = true)]
     async fn auto_interval_resets_when_config_changes() {
@@ -1430,21 +1416,6 @@ mod tests {
         assert!(!waiter.is_finished());
         tokio::time::advance(std::time::Duration::from_millis(1)).await;
         waiter.await.unwrap();
-    }
-
-    #[test]
-    fn validate_mode_speed_is_ok() {
-        assert!(validate_mode(&TranslationMode::Speed).is_ok());
-    }
-
-    #[test]
-    fn validate_mode_quality_is_ok() {
-        assert!(validate_mode(&TranslationMode::Quality).is_ok());
-    }
-
-    #[test]
-    fn validate_mode_local_is_ok() {
-        assert!(validate_mode(&TranslationMode::Local).is_ok());
     }
 
     #[test]

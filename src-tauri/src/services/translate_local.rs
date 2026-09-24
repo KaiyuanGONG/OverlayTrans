@@ -10,9 +10,7 @@ use crate::models::{
     config::{LocalBackend, LocalConfig, TargetLang},
     translation::ContextEntry,
 };
-use crate::services::translate_online::{
-    build_chat_url, normalize_cache_key, ChatContent, ChatMessage, StreamObserver,
-};
+use crate::services::translate_online::{build_chat_url, ChatContent, ChatMessage, StreamObserver};
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Custom loopback URL validation
@@ -192,61 +190,6 @@ impl LocalTranslator {
         messages
     }
 
-    /// Non-streaming local translation.
-    #[allow(dead_code)]
-    pub async fn translate(
-        &self,
-        text: &str,
-        context: &[ContextEntry],
-        endpoint: &str,
-        model: &str,
-        target_lang: &TargetLang,
-    ) -> Result<(String, u64)> {
-        let start = Instant::now();
-        let messages = Self::build_messages(text, context, target_lang);
-
-        let body = serde_json::json!({
-            "model": model,
-            "messages": messages,
-            "stream": false,
-            "chat_template_kwargs": { "enable_thinking": false }
-        });
-
-        let url = build_chat_url(endpoint).map_err(|e| anyhow::anyhow!(e))?;
-        let response = self
-            .client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .context("Failed to send local translation request")?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            anyhow::bail!("Local API returned HTTP {status}");
-        }
-
-        let chat: serde_json::Value = response
-            .json()
-            .await
-            .context("Failed to parse local API response")?;
-
-        let translated = chat["choices"][0]["message"]["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-
-        // Clean up any <think>...</think> tags that Qwen3 might produce
-        let translated = strip_think_tags(&translated);
-
-        if translated.is_empty() {
-            anyhow::bail!("Local translation returned empty result");
-        }
-
-        let latency_ms = start.elapsed().as_millis() as u64;
-        Ok((translated, latency_ms))
-    }
-
     /// Streaming local translation with SSE.
     pub async fn translate_stream<F, G>(
         &self,
@@ -352,50 +295,6 @@ pub fn strip_think_tags(text: &str) -> String {
     result.push_str(remaining);
     result.trim().to_string()
 }
-
-/// Compute the local cache key.
-#[allow(dead_code)]
-pub fn local_cache_key(
-    source: &str,
-    target_lang: &TargetLang,
-    backend: &LocalBackend,
-    endpoint: &str,
-    model: &str,
-    context: &[ContextEntry],
-) -> Option<String> {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let normalized = normalize_cache_key(source);
-    if normalized.is_empty() {
-        return None;
-    }
-
-    let context_digest = if context.is_empty() {
-        "empty".to_string()
-    } else {
-        let mut hasher = DefaultHasher::new();
-        for entry in context {
-            entry.source.hash(&mut hasher);
-            entry.target.hash(&mut hasher);
-        }
-        format!("{:016x}", hasher.finish())
-    };
-
-    let backend_str = match backend {
-        LocalBackend::BundledLlamaCpp => "bundled",
-        LocalBackend::CustomLoopback => "custom",
-    };
-
-    Some(format!(
-        "{normalized}\x1f{}\x1f{backend_str}\x1f{}\x1f{model}\x1flocal\x1fv1\x1f{context_digest}",
-        target_lang.wire_id(),
-        endpoint.trim_end_matches('/'),
-    ))
-}
-
-// Re-export SseParser visibility
-// (SseParser is pub(crate) in translate_online, accessible here)
 
 #[cfg(test)]
 mod tests {
@@ -533,123 +432,6 @@ mod tests {
     }
 
     // ── Local cache key tests ──
-
-    #[test]
-    fn local_cache_key_same_input_hits() {
-        let k1 = local_cache_key(
-            "hello",
-            &TargetLang::Zh,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "qwen3-4b",
-            &[],
-        );
-        let k2 = local_cache_key(
-            "hello",
-            &TargetLang::Zh,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "qwen3-4b",
-            &[],
-        );
-        assert!(k1.is_some() && k2.is_some());
-        assert_eq!(k1.unwrap(), k2.unwrap());
-    }
-
-    #[test]
-    fn local_cache_key_different_backend_misses() {
-        let k1 = local_cache_key(
-            "hello",
-            &TargetLang::Zh,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "model",
-            &[],
-        );
-        let k2 = local_cache_key(
-            "hello",
-            &TargetLang::Zh,
-            &LocalBackend::CustomLoopback,
-            "http://localhost:8080/v1",
-            "model",
-            &[],
-        );
-        assert!(k1.is_some() && k2.is_some());
-        assert_ne!(k1.unwrap(), k2.unwrap());
-    }
-
-    #[test]
-    fn local_cache_key_different_model_misses() {
-        let k1 = local_cache_key(
-            "hello",
-            &TargetLang::Zh,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "model-a",
-            &[],
-        );
-        let k2 = local_cache_key(
-            "hello",
-            &TargetLang::Zh,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "model-b",
-            &[],
-        );
-        assert!(k1.is_some() && k2.is_some());
-        assert_ne!(k1.unwrap(), k2.unwrap());
-    }
-
-    #[test]
-    fn local_cache_key_different_target_misses() {
-        let k1 = local_cache_key(
-            "hello",
-            &TargetLang::Zh,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "model",
-            &[],
-        );
-        let k2 = local_cache_key(
-            "hello",
-            &TargetLang::En,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "model",
-            &[],
-        );
-        assert!(k1.is_some() && k2.is_some());
-        assert_ne!(k1.unwrap(), k2.unwrap());
-    }
-
-    #[test]
-    fn local_cache_key_empty_source_returns_none() {
-        assert!(local_cache_key(
-            "",
-            &TargetLang::Zh,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "model",
-            &[]
-        )
-        .is_none());
-    }
-
-    #[test]
-    fn local_cache_key_contains_mode_local() {
-        let key = local_cache_key(
-            "hello",
-            &TargetLang::Zh,
-            &LocalBackend::BundledLlamaCpp,
-            "http://localhost:8080/v1",
-            "model",
-            &[],
-        )
-        .unwrap();
-        assert!(key.contains("\x1flocal\x1f"));
-    }
-
-    // ── Request JSON tests ──
 
     #[test]
     fn local_request_contains_chat_template_kwargs() {
