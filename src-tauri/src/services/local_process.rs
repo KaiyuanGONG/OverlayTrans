@@ -221,7 +221,11 @@ pub fn find_available_port() -> std::io::Result<u16> {
 /// Health check: poll the /health endpoint.
 pub async fn check_health(endpoint: &str) -> bool {
     let url = format!("{endpoint}/health");
-    match reqwest::Client::new()
+    // Loopback only: bypass HTTP(S)_PROXY / ALL_PROXY for the local server.
+    let Ok(client) = reqwest::Client::builder().no_proxy().build() else {
+        return false;
+    };
+    match client
         .get(&url)
         .timeout(std::time::Duration::from_secs(2))
         .send()

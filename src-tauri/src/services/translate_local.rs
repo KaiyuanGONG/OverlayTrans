@@ -86,7 +86,10 @@ pub struct LocalTranslator {
 impl LocalTranslator {
     pub fn new() -> Self {
         Self {
+            // Loopback only: never route local requests through HTTP(S)_PROXY /
+            // ALL_PROXY, which would send source text to a proxy server.
             client: reqwest::Client::builder()
+                .no_proxy()
                 .timeout(std::time::Duration::from_secs(120))
                 .build()
                 .expect("Failed to build local HTTP client"),
