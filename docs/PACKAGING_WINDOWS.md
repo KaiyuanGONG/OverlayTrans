@@ -6,9 +6,9 @@
 
 需要：
 
-- Node.js 与 npm；
-- Rust stable MSVC toolchain；
-- Visual Studio Build Tools（Desktop development with C++）；
+- Node.js 20.19+（或 22.13+ / 24+）与 npm；
+- Rust stable MSVC toolchain（sidecar 脚本也用 `rustc` 编译 AVX2 探测程序）；
+- Visual Studio 2022 Build Tools（Desktop development with C++，含 MSVC x64 工具集与 CMake；脚本通过 `vswhere` 定位，并使用 `Visual Studio 17 2022` 生成器）；
 - 可访问 GitHub 的网络。Tauri 会自动准备 WiX/NSIS，sidecar 脚本会下载锁定的 llama.cpp 源码。
 - 精确版本 `cargo-about 0.8.4` 与 `cargo-deny 0.20.2`，用于许可证发布门禁。
 - 本地模式要求 AVX2 兼容 CPU，并同时支持 FMA、F16C 与 BMI2；在线速度/质量模式不受此限制。
@@ -40,9 +40,9 @@ node scripts/prepare-sidecar.mjs
 
 脚本会：
 
-1. 下载并校验 llama.cpp `b10068` 固定 revision 的源码 zip；
-2. 用 Windows 自带的 `tar.exe` 解压，并校验源码中的原始 LICENSE；
-3. 检测构建主机支持 AVX2；
+1. 用 `rustc` 编译并运行探测程序，确认构建主机支持 AVX2；再用 `vswhere` 找到 Visual Studio 2022 自带的 CMake 与 `dumpbin`；
+2. 下载并校验 llama.cpp `b10068` 固定 revision 的源码 zip；
+3. 用 Windows 自带的 `tar.exe` 解压，并校验源码中的原始 LICENSE；
 4. 用 Visual Studio 2022 x64 Release、静态 MSVC CRT、`GGML_OPENMP=OFF`、`GGML_BMI2=ON` 构建 `llama-server`；
 5. 运行 `--version` 并用 `dumpbin /dependents` 校验固定 PE 依赖白名单；
 6. 把可执行文件按 Tauri external binary 规则命名为 `llama-server-x86_64-pc-windows-msvc.exe`；
@@ -93,6 +93,16 @@ npm.cmd run licenses:gate
 该命令最后执行 `git status --porcelain=v1 --untracked-files=all`。任何 staged、unstaged 或 untracked 文件都会使门禁失败。
 
 不要并行运行 Vitest 与 Vite build；共享 Vite/Rollup 状态时可能产生无意义的入口冲突。
+
+### 复核服务商预设
+
+`src-tauri/src/models/config.rs` 中的默认模型与端点有时效性（上次核对：2026-07-18）。发布候选前按官方页面逐一核对，避免把已停服或即将停服的模型当作默认值；修改预设后同步更新两份 README 的服务商表格：
+
+- DeepSeek：<https://api-docs.deepseek.com/news/news260424/>、<https://api-docs.deepseek.com/guides/thinking_mode/>
+- Qwen：<https://help.aliyun.com/zh/model-studio/model-depreciation>、<https://help.aliyun.com/zh/model-studio/vision-model>、<https://help.aliyun.com/zh/model-studio/deep-thinking>
+- Gemini：<https://ai.google.dev/gemini-api/docs/openai>、<https://ai.google.dev/gemini-api/docs/deprecations>
+- Groq：<https://console.groq.com/docs/deprecations>
+- OpenAI：<https://developers.openai.com/api/docs/models/gpt-5.4-nano>、<https://developers.openai.com/api/docs/models/gpt-5.4-mini>
 
 ## 4. 生成安装包
 
@@ -149,6 +159,19 @@ Get-Process llama-server -ErrorAction SilentlyContinue |
 4. 测试托盘显示/隐藏、设置窗口、F8 翻译和退出后 sidecar 清理；
 5. 再执行一次真实 Local 翻译，确认安装目录中的 LICENSE 与静态 sidecar 可用，并确认没有 `libomp140.x86_64.dll`。
 
+### 本地模式端到端 smoke
+
+需要下载约 2.5 GB 模型，每个发布版本至少完整跑一次：
+
+1. 设置 → 翻译引擎：选“本地模式”、后端“内置 llama.cpp”、模型 Qwen3-4B；点“下载模型”，进度到 1–3% 时点“取消下载”，确认回到“未下载”，且 `%APPDATA%\OverlayTrans\models\gguf\` 中没有 `Qwen3-4B-Q4_K_M.tmp` 或 `.gguf`；
+2. 重新下载到“已下载”，确认 `Qwen3-4B-Q4_K_M.gguf` 大小为 `2497280256` 字节；
+3. 点“启动运行时”，状态从“启动中…”变为“运行中”，端点为 `http://127.0.0.1:<端口>/v1`；“测试运行时”成功；
+4. 在记事本输入一句英文，采集框覆盖后按 F8，译文流式出现，翻译面板显示本地链路；
+5. 断开网络后再翻译一句，仍然成功且没有切到任何远端服务商；恢复网络；
+6. 把模式切到“速度模式”，数秒后 `Get-Process llama-server -ErrorAction SilentlyContinue` 无输出；切回本地并启动运行时，再从托盘退出，同样无残留进程；
+7. 重新打开应用，模型直接显示“已下载”，不会重复下载或长时间校验；
+8. 点“删除模型”，确认 `Qwen3-4B-Q4_K_M.gguf` 与 `Qwen3-4B-Q4_K_M.gguf.verified.json` 都已删除，且没有 `llama-server` 进程。
+
 可选：不安装 MSI，只行政解包检查内容：
 
 ```powershell
@@ -167,7 +190,7 @@ Start-Process msiexec.exe -ArgumentList @('/a', "`"$($msi.FullName)`"", '/qn', "
 - WiX 报 Windows Installer service 不可访问：检查 `Get-Service msiserver`，必要时在普通本机终端重新执行，不要在受限沙箱运行 ICE。
 - 安装器文件被占用：退出已安装应用并关闭资源管理器预览，再重新打包。
 - `identifier` 以 `.app` 结尾的提示是 macOS 命名建议；Windows 包仍可生成。发布后不要随意更改 identifier，否则会影响升级身份。
-- 正式发布前应同步更新 `package.json`、`src-tauri/Cargo.toml` 与 `src-tauri/tauri.conf.json` 的版本号，并配置代码签名；未签名安装器可能触发 SmartScreen。
+- 正式发布前同步更新版本号：`package.json` 与 `package-lock.json`、`src-tauri/Cargo.toml` 与 `Cargo.lock` 中本包的版本、`src-tauri/tauri.conf.json` 的 `version` 以及 `bundle.resources` 里的 `OverlayTrans-<version>.ico`、设置页“关于”中的版本号（`src/windows/SettingsPanel.tsx`）和 `src/lib/installerConfig.test.ts` 的版本断言。另外应配置代码签名；未签名安装器可能触发 SmartScreen。
 - 重新生成图标必须走项目的完整 no-hex 流程；不要直接运行 `tauri icon`，否则会绕过小尺寸 compact 图标、ICO 多帧和鼻尾完整性门禁：
 
 ```powershell

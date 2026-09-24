@@ -17,7 +17,7 @@ No machine-specific source path is required to verify or regenerate the committe
 
 ## Asset strategy
 
-- `npm.cmd run tauri icon src-tauri/icons/app-icon.svg` produces the full Android, iOS, ICNS and platform icon set from the detailed no-hex master.
+- `scripts/generate-icons.mjs` renders the detailed no-hex master onto the platform plate at 1024 px and feeds that PNG to `tauri icon`, which produces the full Android, iOS, ICNS and platform icon set.
 - Small raster assets and `StoreLogo.png` are overwritten from the compact no-hex master for legibility.
 - `icon.ico` contains compact 16/24/32/48 px entries and detailed 64/128/256 px entries, ordered largest-first. The 256 px entry stays PNG-compressed; every smaller entry is a classic 32-bit DIB because Windows title bars and NSIS render sub-256 PNG entries clipped, and tauri-codegen embeds the first entry as the runtime window/tray icon.
 - `BRAND_ASSET_MANIFEST.json` pins hashes for ICNS, Android, iOS, Store and ICO outputs from the same generation run.
