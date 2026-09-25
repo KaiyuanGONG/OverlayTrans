@@ -1,22 +1,12 @@
-# Normalize line endings on checkout to LF for all text files
-* text=auto
-
-# Source files — always LF
-*.rs      text eol=lf
-*.ts      text eol=lf
-*.tsx     text eol=lf
-*.js      text eol=lf
-*.json    text eol=lf
-*.toml    text eol=lf
-*.md      text eol=lf
-*.css     text eol=lf
-*.html    text eol=lf
-*.yaml    text eol=lf
-*.yml     text eol=lf
+# Check out every text file with LF on all platforms, Windows included: the license
+# gate compares the tracked reports byte for byte with freshly generated LF output,
+# and Vite cannot load a CRLF script that starts with a shebang.
+* text=auto eol=lf
 
 # Binary files — no line-ending conversion
 *.png     binary
 *.jpg     binary
+*.bmp     binary
 *.ico     binary
 *.icns    binary
 *.zip     binary

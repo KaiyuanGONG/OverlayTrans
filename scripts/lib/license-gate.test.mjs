@@ -39,6 +39,11 @@ describe("third-party license release gate", () => {
     ]);
   });
 
+  it("keeps the byte-compared reports LF when Git checks them out on Windows", () => {
+    const attributes = readFileSync(new URL("../../.gitattributes", import.meta.url), "utf8");
+    expect(attributes.split(/\r?\n/)).toContain("* text=auto eol=lf");
+  });
+
   it("passes separate Rust and frontend output paths to the fixed generators", () => {
     const calls = [];
     runLicenseGenerators({
